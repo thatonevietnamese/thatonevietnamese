@@ -22,26 +22,30 @@ local function getCharacterComponents()
     return char, hum, root
 end
 
--- VÒNG LẶP KIỂM TRA TỐC ĐỘ THỰC TẾ ĐỂ CHỐNG KẸT (SMART JUMP)
+-- NHẢY LIÊN TỤC KHI CÓ MỤC TIÊU (TỐI ƯU)
 task.spawn(function()
-    while task.wait(0.1) do
-        if BotActive and SmartJumpActive then
-            local _, humanoid, rootPart = getCharacterComponents()
-            
-            if humanoid and rootPart and humanoid.Health > 0 and humanoid.FloorMaterial ~= Enum.Material.Air then
-                -- Tính vận tốc di chuyển thực tế trên mặt phẳng (Trục X và Z)
-                local velocity = rootPart.AssemblyLinearVelocity
-                local currentSpeed = math.sqrt(velocity.X^2 + velocity.Z^2)
-                
-                -- Nếu tốc độ thực tế thấp hơn 1/2 tốc độ SAFE_SPEED (ví dụ: < 12)
-                -- và Humanoid đang cố gắng di chuyển (MoveDirection khác 0)
-                if currentSpeed < (SAFE_SPEED / 2) and humanoid.MoveDirection.Magnitude > 0 then
-                    humanoid.Jump = true
-                end
-            end
-        end
+while true do
+task.wait(0.2)
+    if not (BotActive and SmartJumpActive) then continue end
+
+    local char = player.Character
+    if not char then continue end
+
+    local humanoid = char:FindFirstChild("Humanoid")
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not rootPart or humanoid.Health <= 0 then continue end
+
+    local itemObject, targetPos = findNearestTarget()
+    if not itemObject or not targetPos then continue end
+
+    local distance = (rootPart.Position - targetPos).Magnitude
+
+    if distance > 5 then
+        humanoid.Jump = true
     end
+end
 end)
+
 
 local function moveToTarget(targetPosition)
     local _, humanoid, rootPart = getCharacterComponents()
