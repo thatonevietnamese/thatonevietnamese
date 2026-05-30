@@ -22,30 +22,32 @@ local function getCharacterComponents()
     return char, hum, root
 end
 
--- NHẢY LIÊN TỤC KHI CÓ MỤC TIÊU (TỐI ƯU)
+-- NHẢY LIÊN TỤC KHI CÓ MỤC TIÊU (FIX LỖI CONTINUE)
 task.spawn(function()
 while true do
 task.wait(0.2)
-    if not (BotActive and SmartJumpActive) then continue end
+    if BotActive and SmartJumpActive then
+        local char = player.Character
 
-    local char = player.Character
-    if not char then continue end
+        if char then
+            local humanoid = char:FindFirstChild("Humanoid")
+            local rootPart = char:FindFirstChild("HumanoidRootPart")
 
-    local humanoid = char:FindFirstChild("Humanoid")
-    local rootPart = char:FindFirstChild("HumanoidRootPart")
-    if not humanoid or not rootPart or humanoid.Health <= 0 then continue end
+            if humanoid and rootPart and humanoid.Health > 0 then
+                local itemObject, targetPos = findNearestTarget()
 
-    local itemObject, targetPos = findNearestTarget()
-    if not itemObject or not targetPos then continue end
+                if itemObject and targetPos then
+                    local distance = (rootPart.Position - targetPos).Magnitude
 
-    local distance = (rootPart.Position - targetPos).Magnitude
-
-    if distance > 5 then
-        humanoid.Jump = true
+                    if distance > 5 then
+                        humanoid.Jump = true
+                    end
+                end
+            end
+        end
     end
 end
 end)
-
 
 local function moveToTarget(targetPosition)
     local _, humanoid, rootPart = getCharacterComponents()
