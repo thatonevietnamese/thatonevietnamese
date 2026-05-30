@@ -16,18 +16,33 @@ local function safeRequest(action, data)
     end
 end
 
-Request:InvokeServer("Start")
-task.wait(2)
+-- 🔍 Check cooldown bằng cách gọi Start
+local function checkCooldown()
+    local result = safeRequest("Start")
+    if not result.Success and result.Reason == "Cooldown" then
+        return result.Remaining or 0
+    end
+    return 0
+end
+
+-- Chờ cooldown nếu có
+local remaining = checkCooldown()
+if remaining > 0 then
+    print("⏳ Cooldown:", remaining, "s - waiting...")
+    task.wait(remaining + 0.5)
+end
 
 local Memory = {}
 local Solved = {}
+local FLIP_DELAY = 0.5
+local MISMATCH_HIDE_DELAY = 1
 
 for i = 1, 16 do
     if Solved[i] then continue end
 
     -- 🎯 lật ô 1
     local res1 = safeRequest("Flip", {Index = i})
-    task.wait(0.5)
+    task.wait(FLIP_DELAY)
 
     if not res1 or not res1.Success then
         warn("❌ nil tại ô", i)
@@ -46,7 +61,7 @@ for i = 1, 16 do
         print("⚡ match nhanh:", i, j)
 
         Request:InvokeServer("Flip", {Index = j})
-        task.wait(0.5)
+        task.wait(FLIP_DELAY)
 
         Solved[i] = true
         Solved[j] = true
@@ -65,7 +80,7 @@ for i = 1, 16 do
 
         if j then
             local res2 = safeRequest("Flip", {Index = j})
-            task.wait(0.5)
+            task.wait(FLIP_DELAY)
 
             if res2 and res2.Success then
                 Memory[img1] = i
@@ -74,14 +89,14 @@ for i = 1, 16 do
                 end
 
                 -- Chờ server xử lý mismatch (nếu không đúng)
-                if res2.Action == "SecondFlip" and not res2.Matched then
-                    local delay = res2.HideMismatchDelaySeconds or 1
+                if not res2.Matched then
+                    local delay = res2.HideMismatchDelaySeconds or MISMATCH_HIDE_DELAY
                     task.wait(delay + 0.1)
                 end
             end
         end
 
-        -- Sau khi lật 2 thẻ sai, chờ delay rồi tiếp tục
+        -- Sau khi lật cặp sai, chờ delay hợp lý
         task.wait(0.8)
     end
 end
