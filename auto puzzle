@@ -1,0 +1,89 @@
+local Request = game:GetService("ReplicatedStorage")
+    :WaitForChild("Remotes")
+    :WaitForChild("PuzzleGame")
+    :WaitForChild("Request")
+
+print("[V23] Matching legit mode")
+
+local function safeRequest(action, data)
+    local success, result = pcall(function()
+        return Request:InvokeServer(action, data)
+    end)
+    if success and type(result) == "table" then
+        return result
+    else
+        return { Success = false, Reason = "RequestFailed" }
+    end
+end
+
+Request:InvokeServer("Start")
+task.wait(2)
+
+local Memory = {}
+local Solved = {}
+
+for i = 1, 16 do
+    if Solved[i] then continue end
+
+    -- 🎯 lật ô 1
+    local res1 = safeRequest("Flip", {Index = i})
+    task.wait(0.5)
+
+    if not res1 or not res1.Success then
+        warn("❌ nil tại ô", i)
+        continue
+    end
+
+    local img1 = res1.Image
+    if not img1 then continue end
+
+    print("🧠 nhớ:", i, img1)
+
+    -- 🔥 nếu đã thấy trước đó → ghép luôn
+    if Memory[img1] and not Solved[Memory[img1]] then
+        local j = Memory[img1]
+
+        print("⚡ match nhanh:", i, j)
+
+        Request:InvokeServer("Flip", {Index = j})
+        task.wait(0.5)
+
+        Solved[i] = true
+        Solved[j] = true
+        Memory[img1] = nil
+
+        task.wait(1.2)
+    else
+        -- ❓ chưa biết → lật thẻ 2 để có cặp
+        local j = nil
+        for k = 1, 16 do
+            if k ~= i and not Solved[k] then
+                j = k
+                break
+            end
+        end
+
+        if j then
+            local res2 = safeRequest("Flip", {Index = j})
+            task.wait(0.5)
+
+            if res2 and res2.Success then
+                Memory[img1] = i
+                if res2.Image then
+                    Memory[res2.Image] = j
+                end
+
+                -- Chờ server xử lý mismatch (nếu không đúng)
+                if res2.Action == "SecondFlip" and not res2.Matched then
+                    local delay = res2.HideMismatchDelaySeconds or 1
+                    task.wait(delay + 0.1)
+                end
+            end
+        end
+
+        -- Sau khi lật 2 thẻ sai, chờ delay rồi tiếp tục
+        task.wait(0.8)
+    end
+end
+
+print("✅ DONE V23")
