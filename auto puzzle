@@ -3,7 +3,7 @@ local Request = game:GetService("ReplicatedStorage")
     :WaitForChild("PuzzleGame")
     :WaitForChild("Request")
 
-print("[V23] Matching legit mode")
+print("[V24] Auto Loop Matching Mode")
 
 local function safeRequest(action, data)
     local success, result = pcall(function()
@@ -16,93 +16,88 @@ local function safeRequest(action, data)
     end
 end
 
--- 🔍 Check cooldown (cũng là cách check game đang chạy)
 local function checkCooldown()
     local result = safeRequest("Start")
     if not result.Success and result.Reason == "Cooldown" then
-        print("⚠️ Game đang chạy hoặc cooldown!")
         return result.Remaining or 0
     end
     return 0
 end
 
--- Chờ cooldown nếu có
-local remaining = checkCooldown()
-if remaining > 0 then
-    print("⏳ Cooldown:", remaining, "s - waiting...")
-    task.wait(remaining + 0.5)
-    return
-end
+-- 🔁 LOOP VĨNH CỬU
+while true do
+    local remaining = checkCooldown()
 
-print("🚀 Bắt đầu matching...")
-
-local Memory = {}
-local Solved = {}
-local FLIP_DELAY = 0.5
-local MISMATCH_HIDE_DELAY = 1
-
-for i = 1, 16 do
-    if Solved[i] then continue end
-
-    -- 🎯 lật ô 1
-    local res1 = safeRequest("Flip", {Index = i})
-    task.wait(FLIP_DELAY)
-
-    if not res1 or not res1.Success then
-        warn("❌ nil tại ô", i)
-        continue
+    if remaining > 0 then
+        print("⏳ Cooldown:", remaining, "s")
+        task.wait(remaining + 0.5)
+        continue -- 🔥 KHÔNG return nữa
     end
 
-    local img1 = res1.Image
-    if not img1 then continue end
+    print("🚀 Bắt đầu game mới...")
 
-    print("🧠 nhớ:", i, img1)
+    local Memory = {}
+    local Solved = {}
 
-    -- 🔥 nếu đã thấy trước đó → ghép luôn
-    if Memory[img1] and not Solved[Memory[img1]] then
-        local j = Memory[img1]
+    local FLIP_DELAY = 0.5
+    local MISMATCH_HIDE_DELAY = 1
 
-        print("⚡ match nhanh:", i, j)
+    for i = 1, 16 do
+        if Solved[i] then continue end
 
-        Request:InvokeServer("Flip", {Index = j})
+        local res1 = safeRequest("Flip", {Index = i})
         task.wait(FLIP_DELAY)
 
-        Solved[i] = true
-        Solved[j] = true
-        Memory[img1] = nil
-
-        task.wait(1.2)
-    else
-        -- ❓ chưa biết → lật thẻ 2 để có cặp
-        local j = nil
-        for k = 1, 16 do
-            if k ~= i and not Solved[k] then
-                j = k
-                break
-            end
+        if not res1 or not res1.Success then
+            continue
         end
 
-        if j then
-            local res2 = safeRequest("Flip", {Index = j})
+        local img1 = res1.Image
+        if not img1 then continue end
+
+        if Memory[img1] and not Solved[Memory[img1]] then
+            local j = Memory[img1]
+
+            Request:InvokeServer("Flip", {Index = j})
             task.wait(FLIP_DELAY)
 
-            if res2 and res2.Success then
-                Memory[img1] = i
-                if res2.Image then
-                    Memory[res2.Image] = j
-                end
+            Solved[i] = true
+            Solved[j] = true
+            Memory[img1] = nil
 
-                -- Chờ server xử lý mismatch (nếu không đúng)
-                if not res2.Matched then
-                    local delay = res2.HideMismatchDelaySeconds or MISMATCH_HIDE_DELAY
-                    task.wait(delay + 0.1)
+            task.wait(1.2)
+        else
+            local j = nil
+            for k = 1, 16 do
+                if k ~= i and not Solved[k] then
+                    j = k
+                    break
                 end
             end
+
+            if j then
+                local res2 = safeRequest("Flip", {Index = j})
+                task.wait(FLIP_DELAY)
+
+                if res2 and res2.Success then
+                    Memory[img1] = i
+                    if res2.Image then
+                        Memory[res2.Image] = j
+                    end
+
+                    if not res2.Matched then
+                        local delay = res2.HideMismatchDelaySeconds or MISMATCH_HIDE_DELAY
+                        task.wait(delay + 0.1)
+                    end
+                end
+            end
+
+            task.wait(0.8)
         end
-
-        -- Sau khi lật cặp sai, chờ delay hợp lý
-        task.wait(0.8)
     end
-end
 
-print("✅ DONE V23")
+    print("✅ DONE 1 ROUND")
+
+    -- ⏳ đợi server set cooldown xong rồi loop tiếp
+    task.wait(2)
+end
