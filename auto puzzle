@@ -16,10 +16,11 @@ local function safeRequest(action, data)
     end
 end
 
--- 🔍 Check cooldown bằng cách gọi Start
+-- 🔍 Check cooldown (cũng là cách check game đang chạy)
 local function checkCooldown()
     local result = safeRequest("Start")
     if not result.Success and result.Reason == "Cooldown" then
+        print("⚠️ Game đang chạy hoặc cooldown!")
         return result.Remaining or 0
     end
     return 0
@@ -30,7 +31,10 @@ local remaining = checkCooldown()
 if remaining > 0 then
     print("⏳ Cooldown:", remaining, "s - waiting...")
     task.wait(remaining + 0.5)
+    return
 end
+
+print("🚀 Bắt đầu matching...")
 
 local Memory = {}
 local Solved = {}
