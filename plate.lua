@@ -6,6 +6,7 @@ local PATH_THICKNESS = 0.1
 
 -- Danh sách tọa độ chuẩn chặng 2 bạn cung cấp
 local OBBY2_WAYPOINTS = {
+	Vector3.new(731, 136, -1448),
 	Vector3.new(730, 136, -1490),
 	Vector3.new(729, 143, -1547),
 	Vector3.new(738, 139, -1602),
