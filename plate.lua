@@ -49,26 +49,31 @@ end
 ------------------------------------------------------------------------
 -- HÀM TẠO MÂM TRÒN CHO CHẶNG 1
 ------------------------------------------------------------------------
+------------------------------------------------------------------------
+-- HÀM TẠO MÂM TRÒN CHO CHẶNG 1 (ĐÃ HẠ THẤP 6 STUDS)
+------------------------------------------------------------------------
 local function deployObby1Cylinder(startPart, endPart, name)
-	local p1 = startPart.Position
-	local p2 = endPart.Position
-	local radius = (p1 - p2).Magnitude
-	local centerPos = p1:Lerp(p2, 0.5)
-	
-	local cylinder = Instance.new("Part")
-	cylinder.Name = name
-	cylinder.Shape = Enum.PartType.Cylinder
-	cylinder.Material = Enum.Material.Neon
-	cylinder.Color = Color3.fromRGB(255, 0, 128)
-	cylinder.Size = Vector3.new(PATH_THICKNESS, radius * 2, radius * 2)
-	cylinder.CFrame = CFrame.new(centerPos) * CFrame.Angles(0, 0, math.rad(90))
-	
-	cylinder.Anchored = true
-	cylinder.CanCollide = true
-	cylinder.Parent = folder
-	print("✔️ [Chặng 1] Đã thảm xong mâm tròn mỏng 0.1 studs!")
+    local p1 = startPart.Position
+    local p2 = endPart.Position
+    local radius = (p1 - p2).Magnitude
+    
+    -- Chỗ này: Lấy trung điểm (Lerp 0.5) rồi trừ đi Vector3.new(0, 6, 0) để hạ độ cao
+    local centerPos = p1:Lerp(p2, 0.5) - Vector3.new(0, 6, 0)
+    
+    local cylinder = Instance.new("Part")
+    cylinder.Name = name
+    cylinder.Shape = Enum.PartType.Cylinder
+    cylinder.Material = Enum.Material.Neon
+    cylinder.Color = Color3.fromRGB(255, 0, 128)
+    -- Giữ nguyên kích thước nhưng thay đổi CFrame xuống dưới
+    cylinder.Size = Vector3.new(PATH_THICKNESS, radius * 2, radius * 2)
+    cylinder.CFrame = CFrame.new(centerPos) * CFrame.Angles(0, 0, math.rad(90))
+    
+    cylinder.Anchored = true
+    cylinder.CanCollide = true
+    cylinder.Parent = folder
+    print("✔️ [Chặng 1] Đã thảm xong mâm tròn, hạ thấp 6 studs!")
 end
-
 ------------------------------------------------------------------------
 -- LUỒNG CHẠY TỔNG HỢP (RÌNH SAO CẢ 2 CHẶNG)
 ------------------------------------------------------------------------
