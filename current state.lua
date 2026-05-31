@@ -1,6 +1,4 @@
-State = {
+return {
     BotActive = false,
-    SmartJump = true,
-    Speed = 24,
-    TargetMode = "Fruit"
+    SmartJump = true
 }
