@@ -1,4 +1,1 @@
-uhh
-thiếu auto obby 1,2
-thiếu auto puzzle 
-thiếu auto plant tree
+loadstring(game:HttpGet("https://raw.githubusercontent.com/thatonevietnamese/thatonevietnamese/refs/heads/main/(state)loader.lua"))() well,in fix 
