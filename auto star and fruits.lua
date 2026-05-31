@@ -1,85 +1,67 @@
 return function(State)
 
-    local PathfindingService = game:GetService("PathfindingService")
     local Players = game:GetService("Players")
+    local PathfindingService = game:GetService("PathfindingService")
     local Workspace = game:GetService("Workspace")
 
     local player = Players.LocalPlayer
-    local fruitsFolder = Workspace:FindFirstChild("SpawnedFruits")
-    local starsFolder = Workspace:FindFirstChild("EventStars")
 
-    local SAFE_SPEED = 24
-    local blacklistedItems = {}
+    local fruits = Workspace:FindFirstChild("SpawnedFruits")
+    local stars = Workspace:FindFirstChild("EventStars")
+
+    local blacklisted = {}
 
     ----------------------------------------------------
-    -- CHARACTER
-    ----------------------------------------------------
-    local function getCharacterComponents()
-        local char = player.Character or player.CharacterAdded:Wait()
-        local hum = char:FindFirstChild("Humanoid")
-        local root = char:FindFirstChild("HumanoidRootPart")
-
-        if hum then hum.WalkSpeed = SAFE_SPEED end
-        return char, hum, root
+    local function getChar()
+        local c = player.Character or player.CharacterAdded:Wait()
+        local h = c:FindFirstChild("Humanoid")
+        local r = c:FindFirstChild("HumanoidRootPart")
+        return c,h,r
     end
 
     ----------------------------------------------------
-    -- POSITION
-    ----------------------------------------------------
-    local function getObjectPosition(obj)
-        if obj:IsA("BasePart") then
-            return obj.Position
-        elseif obj:IsA("Model") then
-            if obj.PrimaryPart then
-                return obj.PrimaryPart.Position
-            else
-                local part = obj:FindFirstChildWhichIsA("BasePart", true)
-                if part then return part.Position end
-            end
+    local function pos(obj)
+        if obj:IsA("BasePart") then return obj.Position end
+        if obj:IsA("Model") then
+            return obj.PrimaryPart and obj.PrimaryPart.Position
+                or obj:FindFirstChildWhichIsA("BasePart", true).Position
         end
-        return nil
     end
 
     ----------------------------------------------------
-    -- FIND TARGET
-    ----------------------------------------------------
-    local function findNearestTarget()
-        local _, _, root = getCharacterComponents()
-        if not root then return nil end
+    local function findTarget()
+        local _,_,root = getChar()
+        if not root then return end
 
-        local myPos = root.Position
-        local nearest, nearestPos, shortest = nil, nil, math.huge
+        local closest, cpos, dist = nil, nil, math.huge
 
-        local function scan(folder, label)
+        local function scan(folder)
             if not folder then return end
-
-            for _, obj in ipairs(folder:GetChildren()) do
-                if not blacklistedItems[obj] then
-                    local pos = getObjectPosition(obj)
-                    if pos then
-                        local dist = (pos - myPos).Magnitude
-                        if dist < shortest then
-                            shortest = dist
-                            nearest = obj
-                            nearestPos = pos
+            for _,v in ipairs(folder:GetChildren()) do
+                if not blacklisted[v] then
+                    local p = pos(v)
+                    if p then
+                        local d = (p - root.Position).Magnitude
+                        if d < dist then
+                            dist = d
+                            closest = v
+                            cpos = p
                         end
                     end
                 end
             end
         end
 
-        scan(fruitsFolder)
-        if not nearest then scan(starsFolder) end
+        scan(fruits)
+        if not closest then scan(stars) end
 
-        return nearest, nearestPos
+        return closest, cpos
     end
 
     ----------------------------------------------------
-    -- MOVE
-    ----------------------------------------------------
-    local function moveToTarget(targetPosition)
-        local _, humanoid, root = getCharacterComponents()
-        if not humanoid or not root then return false end
+    local function moveTo(target)
+        local _,hum,root = getChar()
+        if not hum or not root then return false end
 
         local path = PathfindingService:CreatePath({
             AgentRadius = 2,
@@ -87,29 +69,24 @@ return function(State)
             AgentCanJump = true
         })
 
-        path:ComputeAsync(root.Position, targetPosition)
-
+        path:ComputeAsync(root.Position, target)
         if path.Status ~= Enum.PathStatus.Success then
             return false
         end
 
-        for _, wp in ipairs(path:GetWaypoints()) do
+        for _,wp in ipairs(path:GetWaypoints()) do
 
             if not State.BotActive then
                 return false
             end
 
-            if humanoid.Health <= 0 then
-                return false
-            end
-
             if State.SmartJump and wp.Action == Enum.PathWaypointAction.Jump then
-                humanoid.Jump = true
+                hum.Jump = true
             end
 
-            humanoid:MoveTo(wp.Position)
+            hum:MoveTo(wp.Position)
 
-            local ok = humanoid.MoveToFinished:Wait(1.5)
+            local ok = hum.MoveToFinished:Wait(1.5)
             if not ok then return false end
         end
 
@@ -117,11 +94,9 @@ return function(State)
     end
 
     ----------------------------------------------------
-    -- MAIN LOOP (ONLY ONCE)
-    ----------------------------------------------------
     task.spawn(function()
 
-        print("🤖 Bot loaded")
+        print("🤖 HUB BOT LOADED")
 
         while true do
             task.wait(0.1)
@@ -131,13 +106,13 @@ return function(State)
                 continue
             end
 
-            local item, pos = findNearestTarget()
+            local obj,pos = findTarget()
 
-            if item and pos then
-                local success = moveToTarget(pos)
+            if obj and pos then
+                local ok = moveTo(pos)
 
-                if not success or not item.Parent then
-                    blacklistedItems[item] = true
+                if not ok or not obj.Parent then
+                    blacklisted[obj] = true
                 end
             else
                 task.wait(1)
