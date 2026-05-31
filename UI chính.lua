@@ -1,33 +1,65 @@
+-- UI chính.lua
 return function(State)
+    if game.CoreGui:FindFirstChild("HubUI") then
+        game.CoreGui.HubUI:Destroy()
+    end
+
+    local guiTarget = game.CoreGui
+    local ok, result = pcall(function() return game.CoreGui end)
+    if not ok then
+        warn("[Farmer] CoreGui inaccessible, falling back to PlayerGui.")
+        guiTarget = game.Players.LocalPlayer.PlayerGui
+    end
 
     local gui = Instance.new("ScreenGui")
     gui.Name = "HubUI"
-    gui.Parent = game.CoreGui
+    gui.ResetOnSpawn = false
+    gui.Parent = guiTarget
 
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(0, 180, 0, 45)
-    button.Position = UDim2.new(0, 50, 0, 80)
-    button.BackgroundColor3 = Color3.fromRGB(30,30,30)
-    button.TextColor3 = Color3.fromRGB(255,255,255)
-    button.Text = "BOT: OFF"
-    button.Parent = gui
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(0, 200, 0, 110)
+    container.Position = UDim2.new(0, 50, 0, 80)
+    container.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    container.BorderSizePixel = 0
+    container.Parent = gui
 
-    button.MouseButton1Click:Connect(function()
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 8)
+    uiCorner.Parent = container
+
+    local function makeBtn(text, yOffset, callback)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, 180, 0, 38)
+        btn.Position = UDim2.new(0, 10, 0, yOffset)
+        btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Text = text
+        btn.Font = Enum.Font.GothamMedium
+        btn.TextSize = 14
+        btn.Parent = container
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 6)
+        corner.Parent = btn
+
+        btn.MouseButton1Click:Connect(callback)
+        return btn
+    end
+
+    local botBtn = makeBtn("BOT: OFF", 10, function()
         State.BotActive = not State.BotActive
-        button.Text = State.BotActive and "BOT: ON" or "BOT: OFF"
+        botBtn.Text = State.BotActive and "BOT: ON" or "BOT: OFF"
+        botBtn.BackgroundColor3 = State.BotActive and Color3.fromRGB(30, 120, 60) or Color3.fromRGB(45, 45, 45)
     end)
 
-    local jumpBtn = Instance.new("TextButton")
-    jumpBtn.Size = UDim2.new(0, 180, 0, 45)
-    jumpBtn.Position = UDim2.new(0, 50, 0, 130)
-    jumpBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
-    jumpBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    jumpBtn.Text = "SMART JUMP: ON"
-    jumpBtn.Parent = gui
-
-    jumpBtn.MouseButton1Click:Connect(function()
+    local jumpBtn = makeBtn("SMART JUMP: ON", 56, function()
         State.SmartJump = not State.SmartJump
         jumpBtn.Text = State.SmartJump and "SMART JUMP: ON" or "SMART JUMP: OFF"
+        jumpBtn.BackgroundColor3 = State.SmartJump and Color3.fromRGB(30, 120, 60) or Color3.fromRGB(45, 45, 45)
     end)
 
+    local closeBtn = makeBtn("HIDE", 102, function()
+        container.Visible = not container.Visible
+        closeBtn.Text = container.Visible and "HIDE" or "SHOW"
+    end)
 end
