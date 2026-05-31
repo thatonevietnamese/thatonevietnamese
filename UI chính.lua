@@ -1,13 +1,15 @@
 -- UI chính.lua
 return function(State)
+    getgenv = getgenv or function() return _G end
+    getgenv().FarmerState = State
+
     if game.CoreGui:FindFirstChild("HubUI") then
         game.CoreGui.HubUI:Destroy()
     end
 
     local guiTarget = game.CoreGui
-    local ok, result = pcall(function() return game.CoreGui end)
-    if not ok then
-        warn("[Farmer] CoreGui inaccessible, falling back to PlayerGui.")
+    local okCore = pcall(function() return game.CoreGui end)
+    if not okCore then
         guiTarget = game.Players.LocalPlayer.PlayerGui
     end
 
@@ -46,16 +48,24 @@ return function(State)
         return btn
     end
 
+    local function safeState()
+        return getgenv().FarmerState or State
+    end
+
     local botBtn = makeBtn("BOT: OFF", 10, function()
-        State.BotActive = not State.BotActive
-        botBtn.Text = State.BotActive and "BOT: ON" or "BOT: OFF"
-        botBtn.BackgroundColor3 = State.BotActive and Color3.fromRGB(30, 120, 60) or Color3.fromRGB(45, 45, 45)
+        local s = safeState()
+        if not s then return end
+        s.BotActive = not s.BotActive
+        botBtn.Text = s.BotActive and "BOT: ON" or "BOT: OFF"
+        botBtn.BackgroundColor3 = s.BotActive and Color3.fromRGB(30, 120, 60) or Color3.fromRGB(45, 45, 45)
     end)
 
     local jumpBtn = makeBtn("SMART JUMP: ON", 56, function()
-        State.SmartJump = not State.SmartJump
-        jumpBtn.Text = State.SmartJump and "SMART JUMP: ON" or "SMART JUMP: OFF"
-        jumpBtn.BackgroundColor3 = State.SmartJump and Color3.fromRGB(30, 120, 60) or Color3.fromRGB(45, 45, 45)
+        local s = safeState()
+        if not s then return end
+        s.SmartJump = not s.SmartJump
+        jumpBtn.Text = s.SmartJump and "SMART JUMP: ON" or "SMART JUMP: OFF"
+        jumpBtn.BackgroundColor3 = s.SmartJump and Color3.fromRGB(30, 120, 60) or Color3.fromRGB(45, 45, 45)
     end)
 
     local closeBtn = makeBtn("HIDE", 102, function()
