@@ -1,5 +1,5 @@
--- Roblox Smart Orchestrator Bot - V14.4 (Touch-Lock State Machine)
--- SỬA TRIỆT ĐỂ: Bổ sung luồng kiểm tra ép chạm cổng vào/đích đến, chống trùng lặp lệnh gây kẹt loop.
+-- Roblox Smart Orchestrator Bot - V14.8 (Dynamic Cloud Walker)
+-- CẬP NHẬT: Làm lại hoàn toàn cơ chế Lifter thành bệ đỡ di động, giữ nhân vật lơ lửng di chuyển xuyên tường cho đến khi thoát kẹt hoàn toàn.
 
 local State = {
     BotActive = false,
@@ -11,6 +11,7 @@ local State = {
     ScanTick = 0.15,            
     MoveToTimeout = 1.2,
     CurrentTargetStr = "Chưa có",
+    IsStuckEscaping = false, -- Trạng thái đang trong quá trình thoát kẹt
 }
 
 local UI_Elements = { MasterBtn = nil, FruitBtn = nil, Obby1Btn = nil, Obby2Btn = nil, LifterBtn = nil }
@@ -57,10 +58,12 @@ local function safeCheckHumanoid()
     local root = char:FindFirstChild("HumanoidRootPart")
     
     if not hum or not root then return false, nil, nil end
-    if not hum:IsA("Humanoid") or not root:IsA("BasePart") then return false, nil, nil end
-    if hum.Health <= 0 then return false, nil, nil end
-    
-    return true, hum, root
+    if hum:IsA("Humanoid") and root:IsA("BasePart") then
+        if hum.Health > 0 then
+            return true, hum, root
+        end
+    end
+    return false, nil, nil
 end
 
 local function findTarget()
@@ -91,94 +94,132 @@ local function findTarget()
         end
     end
 
-    scan(Workspace:FindFirstChild("EventStars"))
-    if not closest then scan(Workspace:FindFirstChild("SpawnedFruits")) end
+    local starsFolder = Workspace:FindFirstChild("EventStars", true)
+    local fruitsFolder = Workspace:FindFirstChild("SpawnedFruits", true)
+
+    scan(starsFolder)
+    if not closest then scan(fruitsFolder) end
 
     return closest, cpos
 end
 
-local function spawnLifterPlatform(targetPos)
-    local isAlive, _, root = safeCheckHumanoid()
-    if not isAlive or not targetPos then return end
+-- CẬP NHẬT CHÍ MẠNG V14.8: BỆ ĐỠ DI ĐỘNG HỘ TỐNG XUYÊN TƯỜNG
+local function startCloudWalker(targetPos)
+    local isAlive, hum, root = safeCheckHumanoid()
+    if not isAlive or not targetPos or State.IsStuckEscaping then return end
     
-    local cleanPos = targetPos
-    if typeof(cleanPos) == "Instance" and cleanPos:IsA("BasePart") then
-        cleanPos = cleanPos.Position
-    elseif typeof(cleanPos) ~= "Vector3" then
-        return
-    end
-    
-    debugLog("LIFTER", "Phát hiện kẹt vị trí. Kích hoạt bệ nâng năng lượng vượt địa hình.")
+    State.IsStuckEscaping = true
+    debugLog("LIFTER-V2", "Kích hoạt Đạp Mây Vượt Địa Hình. Thiết lập bệ đỡ di động...")
+
     local platform = Instance.new("Part")
-    platform.Size = Vector3.new(4, 0.6, 4)
-    platform.Name = "BotPlatform"
+    platform.Size = Vector3.new(4.5, 0.6, 4.5)
+    platform.Name = "BotCloudPlatform"
     platform.Anchored = true 
     platform.CanCollide = true
     platform.Material = Enum.Material.Neon
-    platform.Color = Color3.fromRGB(0, 255, 200)
-    platform.Transparency = 0.5
+    platform.Color = Color3.fromRGB(0, 170, 255)
+    platform.Transparency = 0.4
     
-    platform.CFrame = root.CFrame * CFrame.new(0, -2.6, 0)
+    local targetY = root.Position.Y + 4.0
+    root.CFrame = CFrame.new(root.Position.X, targetY, root.Position.Z)
+    platform.CFrame = CFrame.new(root.Position.X, targetY - 2.8, root.Position.Z)
     platform.Parent = Workspace
-    
-    for _ = 1, 8 do
-        if not State.BotActive then break end
-        local alive, _, currentRoot = safeCheckHumanoid()
-        if not alive then break end
+
+    task.spawn(function()
+        local escapeStartTime = os.clock()
         
-        platform.CFrame = platform.CFrame + Vector3.new(0, 1.2, 0)
-        currentRoot.CFrame = currentRoot.CFrame + Vector3.new(0, 1.2, 0)
-        task.wait(0.01)
-    end
-    
-    local aliveAfter, finalHum, finalRoot = safeCheckHumanoid()
-    if aliveAfter and State.BotActive then
-        finalHum:MoveTo(cleanPos) 
-        local direction = (cleanPos - finalRoot.Position).Unit
-        finalRoot.AssemblyLinearVelocity = Vector3.new(direction.X * 35, 12, direction.Z * 35)
-    end
-    
-    task.wait(0.3)
-    if platform and platform.Parent then platform:Destroy() end
+        while State.BotActive and State.IsStuckEscaping do
+            local alive, currentHum, currentRoot = safeCheckHumanoid()
+            if not alive then break end
+            
+            currentHum:MoveTo(targetPos)
+            platform.CFrame = CFrame.new(currentRoot.Position.X, targetY - 2.8, currentRoot.Position.Z)
+            
+            local currentDist = (currentRoot.Position - targetPos).Magnitude
+            if currentDist <= 3.0 or (os.clock() - escapeStartTime) > 3.0 then
+                break
+            end
+            
+            task.wait()
+        end
+        
+        if platform and platform.Parent then platform:Destroy() end
+        State.IsStuckEscaping = false
+        debugLog("LIFTER-V2", "Đã thoát kẹt an toàn. Hủy bệ đỡ di động.")
+    end)
 end
 
+-- CẤU TRÚC CANH TỈNH: Cấm nhảy hoàn toàn + điều chỉnh AgentHeight phù hợp không gian hẹp
 local function smartMoveTo(targetPosition, targetInstance)
-	local isAlive, _, root = safeCheckHumanoid() 
-	if not isAlive or not targetPosition then return false end
+    local isAlive, _, root = safeCheckHumanoid() 
+    if not isAlive or not targetPosition then return false end
 
-	local path = PathfindingService:CreatePath({ AgentRadius = 1.6, AgentHeight = 5.0, AgentCanJump = true, WaypointSpacing = 4.0 })
-	local success, _ = pcall(function() path:ComputeAsync(root.Position, targetPosition) end)
+    local path = PathfindingService:CreatePath({ 
+        AgentRadius = 2.0, 
+        AgentHeight = 3.0, 
+        AgentCanJump = false, 
+        AgentMaxSlope = 25,
+        WaypointSpacing = 4.0
+    })
+
+    local success, _ = pcall(function() 
+        path:ComputeAsync(root.Position, targetPosition) 
+    end)
+
+    local isPathTooSteep = false
+
+    if success and path.Status == Enum.PathStatus.Success then
+        local waypoints = path:GetWaypoints()
+
+        for i = 2, #waypoints do
+            local dy = math.abs(waypoints[i].Position.Y - waypoints[i-1].Position.Y)
+            if dy > 4 then
+                isPathTooSteep = true
+                debugLog("PATH", "Phát hiện đường dốc bất thường → fallback")
+                break
+            end
+        end
+    end
 
     local lastCheckTime = os.clock()
     local lastPosition = root.Position
     local stuckCounter = 0
 
-	if success and path.Status == Enum.PathStatus.Success then
-		local waypoints = path:GetWaypoints()
-        
-		for i, waypoint in ipairs(waypoints) do
-			local alive, currentHum, currentRoot = safeCheckHumanoid() 
-			if not alive or not State.BotActive then return false end
+    if success and path.Status == Enum.PathStatus.Success and not isPathTooSteep then
+        local waypoints = path:GetWaypoints()
+
+        for i, waypoint in ipairs(waypoints) do
+            local alive, currentHum, currentRoot = safeCheckHumanoid() 
+            if not alive or not State.BotActive then return false end
             if targetInstance and not targetInstance:IsDescendantOf(Workspace) then return true end
+
+            if State.IsStuckEscaping then 
+                task.wait(0.1)
+                continue 
+            end
 
             local isLast = (i == #waypoints)
             local targetRadius = isLast and 1.5 or 3.5
-            
-			currentHum:MoveTo(waypoint.Position)
 
-			local startTime = os.clock()
-			while (currentRoot.Position - waypoint.Position).Magnitude > targetRadius do
-				task.wait()
-				local loopAlive, _, cRoot = safeCheckHumanoid() 
-				if not loopAlive or not State.BotActive then return false end
+            currentHum:MoveTo(waypoint.Position)
+
+            local startTime = os.clock()
+
+            while (currentRoot.Position - waypoint.Position).Magnitude > targetRadius do
+                task.wait()
+
+                local loopAlive, _, cRoot = safeCheckHumanoid() 
+                if not loopAlive or not State.BotActive then return false end
                 if targetInstance and not targetInstance:IsDescendantOf(Workspace) then return true end
+                if State.IsStuckEscaping then break end
 
                 if os.clock() - lastCheckTime > 0.35 then
                     if (cRoot.Position - lastPosition).Magnitude < 0.4 then
-                        stuckCounter = stuckCounter + 1
+                        stuckCounter += 1
+
                         if stuckCounter >= 2 then
                             if State.PlatformLifter then
-                                spawnLifterPlatform(waypoint.Position)
+                                startCloudWalker(targetPosition)
                             end
                             stuckCounter = 0
                             lastCheckTime = os.clock() + 0.3
@@ -186,189 +227,200 @@ local function smartMoveTo(targetPosition, targetInstance)
                     else
                         stuckCounter = 0
                     end
+
                     lastPosition = cRoot.Position
                     lastCheckTime = os.clock()
                 end
 
-				if (os.clock() - startTime) > 1.5 then break end
-			end
-		end
-		return true
-	else
-		local aliveFallback, currentHum, currentRoot = safeCheckHumanoid()
-		if aliveFallback then
-			currentHum:MoveTo(targetPosition)
-			local fallbackStartTime = os.clock()
-            
-			while (currentRoot.Position - targetPosition).Magnitude > 1.5 do
-				task.wait()
-				local loopAlive, _, cRoot = safeCheckHumanoid()
-				if not loopAlive or not State.BotActive then return false end
-                if targetInstance and not targetInstance:IsDescendantOf(Workspace) then return true end
+                if (os.clock() - startTime) > 1.5 then break end
+            end
+        end
 
-                if os.clock() - lastCheckTime > 0.35 then
-                    if (cRoot.Position - lastPosition).Magnitude < 0.4 then
-                        stuckCounter = stuckCounter + 1
-                        if stuckCounter >= 2 then
-                            if State.PlatformLifter then
-                                spawnLifterPlatform(targetPosition)
-                            end
-                            stuckCounter = 0
+        return true
+    end
+
+    debugLog("PATH", "Dùng fallback MoveTo")
+
+    local aliveFallback, currentHum, currentRoot = safeCheckHumanoid()
+    if aliveFallback then
+        currentHum:MoveTo(targetPosition)
+
+        local fallbackStartTime = os.clock()
+
+        while (currentRoot.Position - targetPosition).Magnitude > 1.5 do
+            task.wait()
+
+            local loopAlive, _, cRoot = safeCheckHumanoid()
+            if not loopAlive or not State.BotActive then return false end
+            if targetInstance and not targetInstance:IsDescendantOf(Workspace) then return true end
+
+            if State.IsStuckEscaping then 
+                task.wait(0.1) 
+                continue 
+            end
+
+            if os.clock() - lastCheckTime > 0.35 then
+                if (cRoot.Position - lastPosition).Magnitude < 0.4 then
+                    stuckCounter += 1
+
+                    if stuckCounter >= 2 then
+                        if State.PlatformLifter then
+                            startCloudWalker(targetPosition)
                         end
-                    else
                         stuckCounter = 0
                     end
-                    lastPosition = cRoot.Position
-                    lastCheckTime = os.clock()
+                else
+                    stuckCounter = 0
                 end
-				if (os.clock() - fallbackStartTime) > State.MoveToTimeout then break end
-			end
-			return (currentRoot.Position - targetPosition).Magnitude <= 2.0
-		end
-		return false
-	end
+
+                lastPosition = cRoot.Position
+                lastCheckTime = os.clock()
+            end
+
+            if (os.clock() - fallbackStartTime) > State.MoveToTimeout then break end
+        end
+
+        return (currentRoot.Position - targetPosition).Magnitude <= 2.0
+    end
+
+    return false
 end
 
 local function startSmartOrchestrator()
-    debugLog("SYSTEM", "Vòng lặp điều phối V14.4 Touch-Lock đã kích hoạt.")
+    debugLog("SYSTEM", "Vòng lặp điều phối V14.8 Cloud Walker hoạt động.")
     
     task.spawn(function()
         while true do
             task.wait(State.ScanTick)
             
             if State.BotActive then
-                local chosenObbyStage = nil
                 local alive, hum, root = safeCheckHumanoid()
                 
-                -- BƯỚC 1: KIỂM TRA KHÓA MỤC TIÊU NẾU ĐANG Ở TRONG KHU VỰC ẢI OBBY
                 if alive then
+                    local fruitTarget, fruitPos = nil, nil
+                    if State.FarmFruit then 
+                        fruitTarget, fruitPos = findTarget() 
+                    end
+                    
+                    local activeObbyStage = nil
+                    local isInsideObby = false
                     for i, stage in ipairs(obbyStages) do
                         if (i == 1 and State.FarmObby1) or (i == 2 and State.FarmObby2) then
                             local dest = Workspace:FindFirstChild(stage.DestinationName, true)
                             local btn = Workspace:FindFirstChild(stage.TargetBlockName, true)
-                            
-                            -- Nếu đứng gần đích hoặc gần nút bấm của ải nào trong phạm vi 130 studs -> Khóa cứng chạy ải đó
                             if (dest and (root.Position - dest.Position).Magnitude < 130) or (btn and (root.Position - btn.Position).Magnitude < 130) then
-                                chosenObbyStage = stage
+                                activeObbyStage = stage
+                                isInsideObby = true
                                 break
                             end
                         end
                     end
-                end
-                
-                -- BƯỚC 2: NẾU ĐANG Ở NGOÀI SẢNH, LỰA CHỌN ẢI THÔNG THOÁNG ĐỂ TIẾP CẬN
-                if not chosenObbyStage then
-                    if State.FarmObby1 then
-                        local stage1 = obbyStages[1]
-                        local timeBlock1 = Workspace:FindFirstChild(stage1.TimeBlockName, true)
-                        local isBlocked1 = timeBlock1 and timeBlock1.CanCollide == true and timeBlock1.Transparency < 1
-                        if not isBlocked1 then chosenObbyStage = stage1 end
-                    end
-                    
-                    if not chosenObbyStage and State.FarmObby2 then
-                        local stage2 = obbyStages[2]
-                        local timeBlock2 = Workspace:FindFirstChild(stage2.TimeBlockName, true)
-                        local isBlocked2 = timeBlock2 and timeBlock2.CanCollide == true and timeBlock2.Transparency < 1
-                        if not isBlocked2 then chosenObbyStage = stage2 end
-                    end
-                    
-                    if not chosenObbyStage then
-                        if State.FarmObby1 then chosenObbyStage = obbyStages[1]
-                        elseif State.FarmObby2 then chosenObbyStage = obbyStages[2] end
-                    end
-                end
-                
-                -- QUÉT HOA QUẢ DỰ PHÒNG
-                local fruitTarget, fruitPos = nil, nil
-                if State.FarmFruit then fruitTarget, fruitPos = findTarget() end
-                
-                -- BƯỚC 3: XỬ LÝ ĐIỀU PHỐI HÀNH ĐỘNG CHỐNG KẸT LOOP VẬT LÝ
-                if chosenObbyStage and alive then
-                    local stage = chosenObbyStage
-                    State.CurrentTargetStr = "QUY TRÌNH OBBY: " .. stage.Name
-                    
-                    local startTp = Workspace:FindFirstChild(stage.StartTpName, true)
-                    local targetBlock = Workspace:FindFirstChild(stage.TargetBlockName, true)
-                    local timeBlock = Workspace:FindFirstChild(stage.TimeBlockName, true)
-                    local destination = Workspace:FindFirstChild(stage.DestinationName, true)
-                    
-                    local distanceToStart = startTp and (root.Position - startTp.Position).Magnitude or math.huge
-                    local distanceToDest = destination and (root.Position - destination.Position).Magnitude or math.huge
-                    
+
                     -------------------------------------------------------------------------
-                    -- KHÓA CHẠM 1: ĐÃ ĐẾN SÁT ĐÍCH (OBBY STAR) -> ĐỢI TELEPORT RA NGOÀI SẢNH
+                    -- TRƯỜNG HỢP 1: NẾU THẤY QUẢ/SAO Ở SẢNH
                     -------------------------------------------------------------------------
-                    if destination and distanceToDest < 7 then
-                        debugLog("TOUCH-LOCK", "Đã tiếp cận ĐÍCH. Đóng băng luồng lệnh để nhận thưởng & Chờ game teleport...")
-                        hum:MoveTo(destination.Position)
-                        
-                        local lockStart = os.clock()
-                        while destination and destination:IsDescendantOf(Workspace) and (root.Position - destination.Position).Magnitude < 12 do
-                            task.wait(0.05)
-                            local loopAlive, _, cRoot = safeCheckHumanoid()
-                            if not loopAlive or not State.BotActive then break end
-                            -- Nếu khoảng cách đột ngột vọt lên xa chứng tỏ đã bị game teleport đi nơi khác -> Thoát khóa
-                            if (cRoot.Position - destination.Position).Magnitude > 25 then break end
-                            if os.clock() - lockStart > 1.5 then break end -- Timeout an toàn
+                    if fruitTarget and fruitPos and not (isInsideObby and (fruitPos - root.Position).Magnitude > 50) then
+                        State.CurrentTargetStr = string.format("ƯU TIÊN EVENT: %s", fruitTarget.Name)
+                        local reached = smartMoveTo(fruitPos, fruitTarget)
+                        if not reached and fruitTarget and fruitTarget:IsDescendantOf(Workspace) then 
+                            markBlacklisted(fruitTarget)
                         end
-                        debugLog("TOUCH-LOCK", "Giải phóng trạng thái khóa chạm Đích.")
-                        
+
                     -------------------------------------------------------------------------
-                    -- KHÓA CHẠM 2: ĐÃ ĐẾN SÁT CỔNG VÀO (OBBY TP) -> ĐỢI TELEPORT VÀO TRONG ẢI
+                    -- TRƯỜNG HỢP 2: ĐANG LEO ẢI OBBY
                     -------------------------------------------------------------------------
-                    elseif startTp and distanceToStart < 7 then
-                        debugLog("TOUCH-LOCK", "Đã tiếp cận CỔNG VÀO. Đóng băng luồng lệnh & Chờ game dịch chuyển vào ải...")
-                        hum:MoveTo(startTp.Position)
+                    elseif isInsideObby and activeObbyStage then
+                        local stage = activeObbyStage
+                        State.CurrentTargetStr = "ĐANG LEO ẢI: " .. stage.Name
                         
-                        local lockStart = os.clock()
-                        while startTp and (root.Position - startTp.Position).Magnitude < 7 do
-                            task.wait(0.05)
-                            local loopAlive, _, cRoot = safeCheckHumanoid()
-                            if not loopAlive or not State.BotActive then break end
-                            if (cRoot.Position - startTp.Position).Magnitude > 20 then break end -- Đã bị dịch chuyển vào trong
-                            if os.clock() - lockStart > 1.5 then break end -- Timeout an toàn
-                        end
-                        debugLog("TOUCH-LOCK", "Giải phóng trạng thái khóa chạm Cổng vào.")
+                        local startTp = Workspace:FindFirstChild(stage.StartTpName, true)
+                        local targetBlock = Workspace:FindFirstChild(stage.TargetBlockName, true)
+                        local timeBlock = Workspace:FindFirstChild(stage.TimeBlockName, true)
+                        local destination = Workspace:FindFirstChild(stage.DestinationName, true)
                         
-                    -------------------------------------------------------------------------
-                    -- ĐIỀU HƯỚNG DI CHUYỂN THÔNG THƯỜNG TRONG VÀ NGOÀI ẢI
-                    -------------------------------------------------------------------------
-                    else
-                        local isInsideObby = false
-                        if destination and (root.Position - destination.Position).Magnitude < 130 then
-                            isInsideObby = true
-                        elseif targetBlock and (root.Position - targetBlock.Position).Magnitude < 130 then
-                            isInsideObby = true
-                        end
+                        local distanceToStart = startTp and (root.Position - startTp.Position).Magnitude or math.huge
+                        local distanceToDest = destination and (root.Position - destination.Position).Magnitude or math.huge
                         
-                        if not isInsideObby and startTp then
-                            debugLog("OBBY-NAV", "Đang ở ngoài sảnh. Di chuyển tới cổng vào: " .. startTp.Name)
-                            smartMoveTo(startTp.Position, startTp)
+                        if destination and distanceToDest < 7 then
+                            debugLog("TOUCH-LOCK", "Chạm ĐÍCH Obby. Khóa vị trí nhận thưởng...")
+                            hum:MoveTo(destination.Position)
+                            local lockStart = os.clock()
+                            while destination and destination:IsDescendantOf(Workspace) and (root.Position - destination.Position).Magnitude < 12 do
+                                task.wait(0.05)
+                                local loopAlive, _, cRoot = safeCheckHumanoid()
+                                if not loopAlive or not State.BotActive then break end
+                                if (cRoot.Position - destination.Position).Magnitude > 25 then break end
+                                if os.clock() - lockStart > 1.5 then break end
+                            end
+                        elseif startTp and distanceToStart < 7 then
+                            debugLog("TOUCH-LOCK", "Chạm CỔNG VÀO. Đang đợi game nạp map...")
+                            hum:MoveTo(startTp.Position)
+                            local lockStart = os.clock()
+                            while startTp and (root.Position - startTp.Position).Magnitude < 7 do
+                                task.wait(0.05)
+                                local loopAlive, _, cRoot = safeCheckHumanoid()
+                                if not loopAlive or not State.BotActive then break end
+                                if (cRoot.Position - startTp.Position).Magnitude > 20 then break end
+                                if os.clock() - lockStart > 1.5 then break end
+                            end
                         else
                             local isDoorBlocked = timeBlock and timeBlock.CanCollide == true and timeBlock.Transparency < 1
                             if isDoorBlocked then
-                                if targetBlock then 
-                                    debugLog("OBBY-NAV", "Cửa đang khóa! Tiến đến dẫm nút mở cửa: " .. targetBlock.Name)
-                                    smartMoveTo(targetBlock.Position, targetBlock) 
-                                end
+                                if targetBlock then smartMoveTo(targetBlock.Position, targetBlock) end
                             else
-                                if destination then 
-                                    debugLog("OBBY-NAV", "Cửa đã mở thông thoáng! Lao thẳng về đích lấy sao: " .. destination.Name)
-                                    smartMoveTo(destination.Position, destination) 
-                                end
+                                if destination then smartMoveTo(destination.Position, destination) end
                             end
                         end
+                        
+                    -------------------------------------------------------------------------
+                    -- TRƯỜNG HỢP 3: SẢNH TRỐNG -> ĐI TÌM CỔNG OBBY
+                    -------------------------------------------------------------------------
+                    else
+                        local chosenLobbyObby = nil
+                        
+                        if State.FarmObby1 then
+                            local stage1 = obbyStages[1]
+                            local timeBlock1 = Workspace:FindFirstChild(stage1.TimeBlockName, true)
+                            local isBlocked1 = timeBlock1 and timeBlock1.CanCollide == true and timeBlock1.Transparency < 1
+                            if not isBlocked1 then chosenLobbyObby = stage1 end
+                        end
+                        
+                        if not chosenLobbyObby and State.FarmObby2 then
+                            local stage2 = obbyStages[2]
+                            local timeBlock2 = Workspace:FindFirstChild(stage2.TimeBlockName, true)
+                            local isBlocked2 = timeBlock2 and timeBlock2.CanCollide == true and timeBlock2.Transparency < 1
+                            if not isBlocked2 then chosenLobbyObby = stage2 end
+                        end
+                        
+                        if not chosenLobbyObby then
+                            if State.FarmObby1 then chosenLobbyObby = obbyStages[1]
+                            elseif State.FarmObby2 then chosenLobbyObby = obbyStages[2] end
+                        end
+                        
+                        if chosenLobbyObby then
+                            State.CurrentTargetStr = "TIẾN TỚI CỔNG: " .. chosenLobbyObby.Name
+                            local startTp = Workspace:FindFirstChild(chosenLobbyObby.StartTpName, true)
+                            if startTp then
+                                local distanceToStart = (root.Position - startTp.Position).Magnitude
+                                if distanceToStart < 7 then
+                                    debugLog("TOUCH-LOCK", "Đang đứng tại cổng chờ. Ép luồng đi vào...")
+                                    hum:MoveTo(startTp.Position)
+                                    local lockStart = os.clock()
+                                    while startTp and (root.Position - startTp.Position).Magnitude < 7 do
+                                        task.wait(0.05)
+                                        local loopAlive, _, cRoot = safeCheckHumanoid()
+                                        if not loopAlive or not State.BotActive then break end
+                                        if (cRoot.Position - startTp.Position).Magnitude > 20 then break end
+                                        if os.clock() - lockStart > 1.5 then break end
+                                    end
+                                else
+                                    smartMoveTo(startTp.Position, startTp)
+                                end
+                            end
+                        else
+                            State.CurrentTargetStr = "Sảnh trống / Toàn bộ tính năng đang tắt."
+                        end
                     end
-                    
-                elseif fruitTarget and fruitPos then
-                    -- LUỒNG NHẶT QUẢ KHI RẢNH (KHÔNG BẬT HOẶC KHÔNG CÓ ẢI OBBY KHẢ DỤNG)
-                    State.CurrentTargetStr = string.format("NHẶT QUẢ (RẢNH): %s", fruitTarget.Name)
-                    local reached = smartMoveTo(fruitPos, fruitTarget)
-                    if not reached and fruitTarget and fruitTarget:IsDescendantOf(Workspace) then 
-                        markBlacklisted(fruitTarget)
-                    end
-                else
-                    State.CurrentTargetStr = "Hệ thống rảnh rỗi / Hoặc toàn bộ tính năng tắt."
                 end
             end
         end
@@ -476,8 +528,8 @@ local function createUI()
     if UI_Elements.FruitBtn then UI_Elements.FruitBtn.BackgroundColor3 = Color3.fromRGB(26, 70, 133) end
     if UI_Elements.LifterBtn then UI_Elements.LifterBtn.BackgroundColor3 = Color3.fromRGB(26, 107, 54) end
     
-    State.CurrentTargetStr = "Hệ thống UI V14.4"
-    debugLog("UI", "Khởi tạo hoàn tất. Đã nạp kiến trúc Touch-Lock chống kẹt hoàn toàn!")
+    State.CurrentTargetStr = "Hệ thống UI V14.8"
+    debugLog("UI", "Khởi tạo hoàn tất! Đã kích hoạt cơ chế Đạp Mây Vượt Địa Hình mới.")
 end
 
 local function main()
