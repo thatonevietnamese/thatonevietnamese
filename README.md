@@ -1,3 +1,6 @@
 loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/78n/SimpleSpy/main/SimpleSpySource.lua"))()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/evxncodes/mainroblox/main/anti-afk", true))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/thatonevietnamese/thatonevietnamese/refs/heads/main/auto%20puzzle.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/thatonevietnamese/thatonevietnamese/refs/heads/main/plate.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/thatonevietnamese/thatonevietnamese/refs/heads/main/obbyandfruit.lua"))()
