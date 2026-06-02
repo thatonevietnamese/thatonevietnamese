@@ -4,3 +4,4 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/evxncodes/mainroblox/
 loadstring(game:HttpGet("https://raw.githubusercontent.com/thatonevietnamese/thatonevietnamese/refs/heads/main/auto%20puzzle.lua"))()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/thatonevietnamese/thatonevietnamese/refs/heads/main/plate.lua"))()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/thatonevietnamese/thatonevietnamese/refs/heads/main/obbyandfruit.lua"))()
+loadstring(game:HttpGet('https://raw.githubusercontent.com/thatonevietnamese/thatonevietnamese/refs/heads/main/infinity%20yield%20%2B%20simple%20spy.lua'))()
