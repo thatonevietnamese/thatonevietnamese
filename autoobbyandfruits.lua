@@ -42,13 +42,13 @@ local P3 = Vector3.new(732.3, 132.8, -1446.8)
 local P4 = Vector3.new(734.2, 155.5, -1773.5) 
 
 local State = {
-    BotActive = false,
+    BotActive = true,       -- [ĐÃ ĐỔI] Tự động bật Agent khi khởi động
     PlatformLifter = true, 
-    FarmItems = true,     
-    FarmObby1 = false,  
-    FarmObby2 = false,  
+    FarmItems = true,      
+    FarmObby1 = true,       -- [ĐÃ ĐỔI] Tự động bật làm Obby 1
+    FarmObby2 = true,       -- [ĐÃ ĐỔI] Tự động bật làm Obby 2
     BlacklistExpiry = 5, 
-    ScanTick = 0.1,      
+    ScanTick = 0.1,         
     CurrentTargetStr = "Chưa có",
     IsStuckEscaping = false,
     Obby1PlatformReached = false, 
@@ -638,7 +638,8 @@ local function createUI()
         return b
     end
 
-    UI_Elements.MasterBtn = makeBtn("BOT ACTIVE: OFF", 8, function(self)
+    -- [CẬP NHẬT] Đồng bộ text và màu nền ban đầu hiển thị đúng trạng thái ON khi khởi chạy
+    UI_Elements.MasterBtn = makeBtn("BOT ACTIVE: ON", 8, function(self)
         State.BotActive = not State.BotActive
         self.Text = State.BotActive and "BOT ACTIVE: ON" or "BOT ACTIVE: OFF"
         self.BackgroundColor3 = State.BotActive and Color3.fromRGB(26, 107, 54) or Color3.fromRGB(33, 33, 33)
@@ -647,26 +648,36 @@ local function createUI()
             if alive then hum:MoveTo(root.Position) end
         end
     end)
+    UI_Elements.MasterBtn.BackgroundColor3 = Color3.fromRGB(26, 107, 54)
+
     UI_Elements.ItemBtn = makeBtn("FARM ITEMS: ON", 36, function(self)
         State.FarmItems = not State.FarmItems
         self.Text = State.FarmItems and "FARM ITEMS: ON" or "FARM ITEMS: OFF"
         self.BackgroundColor3 = State.FarmItems and Color3.fromRGB(26, 70, 133) or Color3.fromRGB(33, 33, 33)
     end)
-    UI_Elements.Obby1Btn = makeBtn("FARM OBBY 1: OFF", 64, function(self)
+    UI_Elements.ItemBtn.BackgroundColor3 = Color3.fromRGB(26, 70, 133)
+
+    UI_Elements.Obby1Btn = makeBtn("FARM OBBY 1: ON", 64, function(self)
         State.FarmObby1 = not State.FarmObby1
         self.Text = State.FarmObby1 and "FARM OBBY 1: ON" or "FARM OBBY 1: OFF"
         self.BackgroundColor3 = State.FarmObby1 and Color3.fromRGB(112, 34, 130) or Color3.fromRGB(33, 33, 33)
     end)
-    UI_Elements.Obby2Btn = makeBtn("FARM OBBY 2: OFF", 92, function(self)
+    UI_Elements.Obby1Btn.BackgroundColor3 = Color3.fromRGB(112, 34, 130)
+
+    UI_Elements.Obby2Btn = makeBtn("FARM OBBY 2: ON", 92, function(self)
         State.FarmObby2 = not State.FarmObby2
         self.Text = State.FarmObby2 and "FARM OBBY 2: ON" or "FARM OBBY 2: OFF"
         self.BackgroundColor3 = State.FarmObby2 and Color3.fromRGB(112, 34, 130) or Color3.fromRGB(33, 33, 33)
     end)
+    UI_Elements.Obby2Btn.BackgroundColor3 = Color3.fromRGB(112, 34, 130)
+
     UI_Elements.LifterBtn = makeBtn("PLATFORM LIFTER: ON", 120, function(self)
         State.PlatformLifter = not State.PlatformLifter
         self.Text = State.PlatformLifter and "PLATFORM LIFTER: ON" or "PLATFORM LIFTER: OFF"
         self.BackgroundColor3 = State.PlatformLifter and Color3.fromRGB(26, 107, 54) or Color3.fromRGB(33, 33, 33)
     end)
+    UI_Elements.LifterBtn.BackgroundColor3 = Color3.fromRGB(26, 107, 54)
+
     makeBtn("MINIMIZE UI", 148, function(self)
         local vis = not UI_Elements.MasterBtn.Visible
         for _, c in ipairs({UI_Elements.MasterBtn, UI_Elements.ItemBtn, UI_Elements.Obby1Btn, UI_Elements.Obby2Btn, UI_Elements.LifterBtn}) do c.Visible = vis end
@@ -674,9 +685,6 @@ local function createUI()
         container.Size = vis and UDim2.new(0, 140, 0, 185) or UDim2.new(0, 140, 0, 38)
         self.Position = vis and UDim2.new(0, 8, 0, 148) or UDim2.new(0, 8, 0, 7)
     end)
-    
-    UI_Elements.ItemBtn.BackgroundColor3 = Color3.fromRGB(26, 70, 133)
-    UI_Elements.LifterBtn.BackgroundColor3 = Color3.fromRGB(26, 107, 54)
 end
 
 -------------------------------------------------------------------------
