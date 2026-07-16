@@ -227,6 +227,7 @@ Join.Text = "Join 🚀"
 Join.TextColor3 = Color3.fromRGB(255, 255, 255)
 Join.TextScaled = true
 
+-- Nút Đóng (X)
 local Close = Instance.new("TextButton")
 Close.Parent = MainFrame
 Close.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
@@ -243,6 +244,48 @@ UICorner_Close.Parent = Close
 Close.MouseButton1Click:Connect(function()
     LowServerFinder:Destroy()
 end)
+
+-- ==========================================
+-- NÚT ẨN UI (MINIMIZE) VÀ MỞ LẠI (OPEN)
+-- ==========================================
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Parent = MainFrame
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 0)
+MinimizeBtn.Position = UDim2.new(0.825, 0, 0, 0) -- Nằm ngay bên trái nút X
+MinimizeBtn.Size = UDim2.new(0, 55, 0, 36)
+MinimizeBtn.Font = Enum.Font.SourceSans
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.TextScaled = true
+local UICorner_Minimize = Instance.new("UICorner")
+UICorner_Minimize.CornerRadius = UDim.new(0, 8)
+UICorner_Minimize.Parent = MinimizeBtn
+
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Parent = LowServerFinder
+OpenBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+OpenBtn.Position = UDim2.new(0.02, 0, 0.05, 0) -- Vị trí mặc định khi ẩn
+OpenBtn.Size = UDim2.new(0, 50, 0, 50)
+OpenBtn.Font = Enum.Font.SourceSans
+OpenBtn.Text = "👁️"
+OpenBtn.TextScaled = true
+OpenBtn.Visible = false -- Ẩn đi khi bảng MainFrame đang bật
+local UICorner_Open = Instance.new("UICorner")
+UICorner_Open.CornerRadius = UDim.new(1, 0) -- Bo tròn
+UICorner_Open.Parent = OpenBtn
+
+MakeDraggable(OpenBtn) -- Kéo thả nút mở lại
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    OpenBtn.Visible = true
+end)
+
+OpenBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    OpenBtn.Visible = false
+end)
+-- ==========================================
 
 UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     ServerListFrame.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y)
