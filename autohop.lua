@@ -5,6 +5,11 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
+-- Hàm Copy cho Executor
+local setclipboard = setclipboard or toclipboard or function(text)
+    warn("Executor của bạn không hỗ trợ tính năng copy (setclipboard)!")
+end
+
 local requestFunc = nil
 if syn and syn.request then requestFunc = syn.request
 elseif http and http.request then requestFunc = http.request
@@ -14,13 +19,15 @@ elseif request then requestFunc = request
 else error("Không tìm thấy hàm HTTP request phù hợp! 😢") end
 
 local gameName = "Unknown"
+local gameIconId = 0
 pcall(function()
     local info = MarketplaceService:GetProductInfo(game.PlaceId)
     gameName = info.Name or gameName
+    gameIconId = info.IconImageAssetId or 0
 end)
 
 -- ==========================================
--- HỆ THỐNG LƯU FILE (CHO AUTO-EXECUTE)
+-- HỆ THỐNG LƯU FILE
 -- ==========================================
 local ConfigFile = "AutoHop_Data.json"
 local AppData = {
@@ -44,17 +51,13 @@ local function LoadData()
             if decoded then
                 AppData.MaxPlayers = decoded.MaxPlayers or 5
                 AppData.AutoHopEnabled = decoded.AutoHopEnabled or false
-                
-                -- Giữ Blacklist để không chui lại vào server cũ
                 AppData.BannedServers = decoded.BannedServers or {}
             end
         end)
     end
 end
 
--- Tải dữ liệu từ file ngay khi script vừa chạy (do autoexec)
 LoadData()
--- Tự động đưa phòng hiện tại vào Blacklist để không lặp lại
 AppData.BannedServers[game.JobId] = true
 SaveData()
 
@@ -87,7 +90,7 @@ local function MakeDraggable(guiObject)
 end
 
 -- ==========================================
--- TẠO GUI 
+-- TẠO GUI CHÍNH & TABS
 -- ==========================================
 local LowServerFinder = Instance.new("ScreenGui")
 LowServerFinder.Name = "LowServerFinder"
@@ -100,7 +103,7 @@ MainFrame.Parent = LowServerFinder
 MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 MainFrame.BorderSizePixel = 0
 MainFrame.Position = UDim2.new(0.1267, 0, 0.1183, 0)
-MainFrame.Size = UDim2.new(0, 700, 0, 450)
+MainFrame.Size = UDim2.new(0, 700, 0, 480) -- Tăng xíu chiều cao cho rộng rãi
 local UICorner_Main = Instance.new("UICorner")
 UICorner_Main.CornerRadius = UDim.new(0, 12)
 UICorner_Main.Parent = MainFrame
@@ -109,7 +112,7 @@ local Title = Instance.new("TextLabel")
 Title.Name = "Title"
 Title.Parent = MainFrame
 Title.BackgroundTransparency = 1
-Title.Position = UDim2.new(0.00857, 0, 0.015, 0)
+Title.Position = UDim2.new(0.02, 0, 0.015, 0)
 Title.Size = UDim2.new(0, 500, 0, 30)
 Title.Font = Enum.Font.GothamBold
 Title.Text = "Server Finder & Auto-Hop ⚡"
@@ -117,11 +120,51 @@ Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextScaled = true
 Title.TextXAlignment = Enum.TextXAlignment.Left
 
+-- Thanh Tab (Tab Bar)
+local TabBar = Instance.new("Frame")
+TabBar.Parent = MainFrame
+TabBar.BackgroundTransparency = 1
+TabBar.Position = UDim2.new(0, 0, 0.09, 0)
+TabBar.Size = UDim2.new(1, 0, 0, 35)
+
+local Tab1Btn = Instance.new("TextButton")
+Tab1Btn.Parent = TabBar
+Tab1Btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+Tab1Btn.Position = UDim2.new(0.01, 0, 0, 0)
+Tab1Btn.Size = UDim2.new(0, 150, 1, 0)
+Tab1Btn.Font = Enum.Font.GothamBold
+Tab1Btn.Text = "🌍 Server List"
+Tab1Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+Tab1Btn.TextSize = 16
+local UICorner_T1 = Instance.new("UICorner")
+UICorner_T1.Parent = Tab1Btn
+
+local Tab2Btn = Instance.new("TextButton")
+Tab2Btn.Parent = TabBar
+Tab2Btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Tab2Btn.Position = UDim2.new(0.24, 0, 0, 0)
+Tab2Btn.Size = UDim2.new(0, 150, 1, 0)
+Tab2Btn.Font = Enum.Font.GothamBold
+Tab2Btn.Text = "🛠️ Tiện Ích"
+Tab2Btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+Tab2Btn.TextSize = 16
+local UICorner_T2 = Instance.new("UICorner")
+UICorner_T2.Parent = Tab2Btn
+
+-- ==========================================
+-- TAB 1: SERVER LIST (NỘI DUNG CŨ)
+-- ==========================================
+local Tab1Container = Instance.new("Frame")
+Tab1Container.Parent = MainFrame
+Tab1Container.BackgroundTransparency = 1
+Tab1Container.Position = UDim2.new(0, 0, 0.18, 0)
+Tab1Container.Size = UDim2.new(1, 0, 0.8, 0)
+Tab1Container.Visible = true
+
 local ConfigFrame = Instance.new("Frame")
-ConfigFrame.Name = "ConfigFrame"
-ConfigFrame.Parent = MainFrame
+ConfigFrame.Parent = Tab1Container
 ConfigFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-ConfigFrame.Position = UDim2.new(0.00857, 0, 0.1, 0)
+ConfigFrame.Position = UDim2.new(0.008, 0, 0, 0)
 ConfigFrame.Size = UDim2.new(0, 688, 0, 45)
 local UICorner_Config = Instance.new("UICorner")
 UICorner_Config.CornerRadius = UDim.new(0, 8)
@@ -144,11 +187,10 @@ MaxPlayersInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 MaxPlayersInput.Position = UDim2.new(0.38, 0, 0.15, 0)
 MaxPlayersInput.Size = UDim2.new(0, 60, 0, 30)
 MaxPlayersInput.Font = Enum.Font.SourceSansBold
-MaxPlayersInput.Text = tostring(AppData.MaxPlayers) -- Lấy từ file lưu
+MaxPlayersInput.Text = tostring(AppData.MaxPlayers)
 MaxPlayersInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 MaxPlayersInput.TextSize = 18
 local UICorner_Input = Instance.new("UICorner")
-UICorner_Input.CornerRadius = UDim.new(0, 4)
 UICorner_Input.Parent = MaxPlayersInput
 
 local AutoHopToggle = Instance.new("TextButton")
@@ -158,10 +200,8 @@ AutoHopToggle.Size = UDim2.new(0, 150, 0, 30)
 AutoHopToggle.Font = Enum.Font.SourceSansBold
 AutoHopToggle.TextSize = 16
 local UICorner_Toggle = Instance.new("UICorner")
-UICorner_Toggle.CornerRadius = UDim.new(0, 6)
 UICorner_Toggle.Parent = AutoHopToggle
 
--- Cập nhật giao diện nút Toggle dựa trên dữ liệu load từ file
 local function UpdateToggleUI()
     if AppData.AutoHopEnabled then
         AutoHopToggle.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
@@ -183,15 +223,14 @@ RefreshBtn.Text = "Làm Mới List 🔄"
 RefreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 RefreshBtn.TextSize = 16
 local UICorner_Refresh = Instance.new("UICorner")
-UICorner_Refresh.CornerRadius = UDim.new(0, 6)
 UICorner_Refresh.Parent = RefreshBtn
 
 local ServerListFrame = Instance.new("ScrollingFrame")
-ServerListFrame.Parent = MainFrame
+ServerListFrame.Parent = Tab1Container
 ServerListFrame.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
 ServerListFrame.BorderSizePixel = 0
-ServerListFrame.Position = UDim2.new(0.00857, 0, 0.22, 0)
-ServerListFrame.Size = UDim2.new(0, 688, 0, 340)
+ServerListFrame.Position = UDim2.new(0.008, 0, 0.14, 0)
+ServerListFrame.Size = UDim2.new(0, 688, 0, 330)
 ServerListFrame.ScrollBarThickness = 4
 
 local UIListLayout = Instance.new("UIListLayout")
@@ -202,7 +241,6 @@ ServerFrameTemplate.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 ServerFrameTemplate.Size = UDim2.new(0, 668, 0, 40)
 ServerFrameTemplate.Visible = false
 local UICorner_Server = Instance.new("UICorner")
-UICorner_Server.CornerRadius = UDim.new(0, 8)
 UICorner_Server.Parent = ServerFrameTemplate
 
 local ServerInfo = Instance.new("TextLabel")
@@ -227,86 +265,178 @@ Join.Text = "Join 🚀"
 Join.TextColor3 = Color3.fromRGB(255, 255, 255)
 Join.TextScaled = true
 
--- Nút Đóng (X)
+-- ==========================================
+-- TAB 2: TIỆN ÍCH (MỚI)
+-- ==========================================
+local Tab2Container = Instance.new("Frame")
+Tab2Container.Parent = MainFrame
+Tab2Container.BackgroundTransparency = 1
+Tab2Container.Position = UDim2.new(0, 0, 0.18, 0)
+Tab2Container.Size = UDim2.new(1, 0, 0.8, 0)
+Tab2Container.Visible = false
+
+-- Ảnh Game & Tên Game
+local GameIcon = Instance.new("ImageLabel")
+GameIcon.Parent = Tab2Container
+GameIcon.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+GameIcon.Position = UDim2.new(0.05, 0, 0.05, 0)
+GameIcon.Size = UDim2.new(0, 100, 0, 100)
+GameIcon.Image = "rbxassetid://" .. gameIconId
+local UICorner_Icon = Instance.new("UICorner")
+UICorner_Icon.CornerRadius = UDim.new(0, 12)
+UICorner_Icon.Parent = GameIcon
+
+local GameNameTxt = Instance.new("TextLabel")
+GameNameTxt.Parent = Tab2Container
+GameNameTxt.BackgroundTransparency = 1
+GameNameTxt.Position = UDim2.new(0.22, 0, 0.05, 0)
+GameNameTxt.Size = UDim2.new(0.7, 0, 0, 40)
+GameNameTxt.Font = Enum.Font.GothamBold
+GameNameTxt.Text = gameName
+GameNameTxt.TextColor3 = Color3.fromRGB(255, 255, 255)
+GameNameTxt.TextSize = 24
+GameNameTxt.TextWrapped = true
+GameNameTxt.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Copy JobId
+local CopyJobIdBtn = Instance.new("TextButton")
+CopyJobIdBtn.Parent = Tab2Container
+CopyJobIdBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+CopyJobIdBtn.Position = UDim2.new(0.22, 0, 0.18, 0)
+CopyJobIdBtn.Size = UDim2.new(0, 200, 0, 35)
+CopyJobIdBtn.Font = Enum.Font.GothamBold
+CopyJobIdBtn.Text = "📋 Copy JobId Hiện Tại"
+CopyJobIdBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CopyJobIdBtn.TextSize = 14
+local UICorner_CopyBtn = Instance.new("UICorner")
+UICorner_CopyBtn.Parent = CopyJobIdBtn
+
+-- Join by JobId
+local JobIdInput = Instance.new("TextBox")
+JobIdInput.Parent = Tab2Container
+JobIdInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+JobIdInput.Position = UDim2.new(0.05, 0, 0.4, 0)
+JobIdInput.Size = UDim2.new(0, 450, 0, 40)
+JobIdInput.Font = Enum.Font.SourceSans
+JobIdInput.PlaceholderText = "Dán JobId vào đây để join..."
+JobIdInput.Text = ""
+JobIdInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+JobIdInput.TextSize = 18
+local UICorner_JobInput = Instance.new("UICorner")
+UICorner_JobInput.Parent = JobIdInput
+
+local JoinJobIdBtn = Instance.new("TextButton")
+JoinJobIdBtn.Parent = Tab2Container
+JoinJobIdBtn.BackgroundColor3 = Color3.fromRGB(85, 255, 85)
+JoinJobIdBtn.Position = UDim2.new(0.72, 0, 0.4, 0)
+JoinJobIdBtn.Size = UDim2.new(0, 150, 0, 40)
+JoinJobIdBtn.Font = Enum.Font.GothamBold
+JoinJobIdBtn.Text = "🚀 Bay Tới"
+JoinJobIdBtn.TextColor3 = Color3.fromRGB(0, 50, 0)
+JoinJobIdBtn.TextSize = 16
+local UICorner_JoinJobId = Instance.new("UICorner")
+UICorner_JoinJobId.Parent = JoinJobIdBtn
+
+-- Random Servers Buttons
+local RandomServerBtn = Instance.new("TextButton")
+RandomServerBtn.Parent = Tab2Container
+RandomServerBtn.BackgroundColor3 = Color3.fromRGB(85, 85, 255)
+RandomServerBtn.Position = UDim2.new(0.05, 0, 0.6, 0)
+RandomServerBtn.Size = UDim2.new(0, 300, 0, 45)
+RandomServerBtn.Font = Enum.Font.GothamBold
+RandomServerBtn.Text = "🎲 Random 1 Server Bất Kỳ"
+RandomServerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RandomServerBtn.TextSize = 16
+local UICorner_Rand1 = Instance.new("UICorner")
+UICorner_Rand1.Parent = RandomServerBtn
+
+local RandomLowServerBtn = Instance.new("TextButton")
+RandomLowServerBtn.Parent = Tab2Container
+RandomLowServerBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 255)
+RandomLowServerBtn.Position = UDim2.new(0.5, 0, 0.6, 0)
+RandomLowServerBtn.Size = UDim2.new(0, 300, 0, 45)
+RandomLowServerBtn.Font = Enum.Font.GothamBold
+RandomLowServerBtn.Text = "👻 Random Server ÍT Người"
+RandomLowServerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RandomLowServerBtn.TextSize = 16
+local UICorner_Rand2 = Instance.new("UICorner")
+UICorner_Rand2.Parent = RandomLowServerBtn
+
+-- ==========================================
+-- NÚT ĐÓNG & ẨN UI
+-- ==========================================
 local Close = Instance.new("TextButton")
 Close.Parent = MainFrame
 Close.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-Close.Position = UDim2.new(0.91286, 0, 0, 0)
+Close.Position = UDim2.new(0.91, 0, 0, 0)
 Close.Size = UDim2.new(0, 55, 0, 36)
 Close.Font = Enum.Font.SourceSans
 Close.Text = "x"
 Close.TextColor3 = Color3.fromRGB(255, 255, 255)
 Close.TextScaled = true
 local UICorner_Close = Instance.new("UICorner")
-UICorner_Close.CornerRadius = UDim.new(0, 8)
 UICorner_Close.Parent = Close
 
-Close.MouseButton1Click:Connect(function()
-    LowServerFinder:Destroy()
-end)
-
--- ==========================================
--- NÚT ẨN UI (MINIMIZE) VÀ MỞ LẠI (OPEN)
--- ==========================================
 local MinimizeBtn = Instance.new("TextButton")
 MinimizeBtn.Parent = MainFrame
 MinimizeBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 0)
-MinimizeBtn.Position = UDim2.new(0.825, 0, 0, 0) -- Nằm ngay bên trái nút X
+MinimizeBtn.Position = UDim2.new(0.825, 0, 0, 0)
 MinimizeBtn.Size = UDim2.new(0, 55, 0, 36)
 MinimizeBtn.Font = Enum.Font.SourceSans
 MinimizeBtn.Text = "-"
 MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 MinimizeBtn.TextScaled = true
 local UICorner_Minimize = Instance.new("UICorner")
-UICorner_Minimize.CornerRadius = UDim.new(0, 8)
 UICorner_Minimize.Parent = MinimizeBtn
 
 local OpenBtn = Instance.new("TextButton")
 OpenBtn.Parent = LowServerFinder
 OpenBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-OpenBtn.Position = UDim2.new(0.02, 0, 0.05, 0) -- Vị trí mặc định khi ẩn
+OpenBtn.Position = UDim2.new(0.02, 0, 0.05, 0)
 OpenBtn.Size = UDim2.new(0, 50, 0, 50)
 OpenBtn.Font = Enum.Font.SourceSans
 OpenBtn.Text = "👁️"
 OpenBtn.TextScaled = true
-OpenBtn.Visible = false -- Ẩn đi khi bảng MainFrame đang bật
+OpenBtn.Visible = false
 local UICorner_Open = Instance.new("UICorner")
-UICorner_Open.CornerRadius = UDim.new(1, 0) -- Bo tròn
+UICorner_Open.CornerRadius = UDim.new(1, 0)
 UICorner_Open.Parent = OpenBtn
 
-MakeDraggable(OpenBtn) -- Kéo thả nút mở lại
+MakeDraggable(OpenBtn)
 
+Close.MouseButton1Click:Connect(function() LowServerFinder:Destroy() end)
 MinimizeBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
     OpenBtn.Visible = true
 end)
-
 OpenBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = true
     OpenBtn.Visible = false
 end)
--- ==========================================
 
-UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    ServerListFrame.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y)
+-- ==========================================
+-- LOGIC CÁC TAB
+-- ==========================================
+Tab1Btn.MouseButton1Click:Connect(function()
+    Tab1Container.Visible = true
+    Tab2Container.Visible = false
+    Tab1Btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    Tab1Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Tab2Btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    Tab2Btn.TextColor3 = Color3.fromRGB(200, 200, 200)
 end)
 
-local function createServerEntry(serverData)
-    local clone = ServerFrameTemplate:Clone()
-    clone.Name = "ServerFrameClone"
-    clone.Visible = true
-    clone.Parent = ServerListFrame
-
-    clone:FindFirstChild("ServerInfo").Text = string.format("Server: %s | (ID: %s)\n👥 %d / %d", 
-        gameName, string.sub(tostring(serverData.id), 1, 8).."...", serverData.playing, serverData.maxPlayers)
-
-    clone:FindFirstChild("Join").MouseButton1Click:Connect(function()
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, serverData.id, LocalPlayer)
-    end)
-end
+Tab2Btn.MouseButton1Click:Connect(function()
+    Tab1Container.Visible = false
+    Tab2Container.Visible = true
+    Tab2Btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    Tab2Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Tab1Btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    Tab1Btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+end)
 
 -- ==========================================
--- LOGIC TÌM SERVER 
+-- LOGIC TÌM SERVER (DÙNG CHUNG)
 -- ==========================================
 local function fetchServers(cursor)
     local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100", game.PlaceId)
@@ -349,6 +479,27 @@ local function getBestServers()
     return servers
 end
 
+-- ==========================================
+-- LOGIC TAB 1: HIỂN THỊ LIST SERVER
+-- ==========================================
+UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    ServerListFrame.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y)
+end)
+
+local function createServerEntry(serverData)
+    local clone = ServerFrameTemplate:Clone()
+    clone.Name = "ServerFrameClone"
+    clone.Visible = true
+    clone.Parent = ServerListFrame
+
+    clone:FindFirstChild("ServerInfo").Text = string.format("Server: %s | (ID: %s)\n👥 %d / %d", 
+        gameName, string.sub(tostring(serverData.id), 1, 8).."...", serverData.playing, serverData.maxPlayers)
+
+    clone:FindFirstChild("Join").MouseButton1Click:Connect(function()
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, serverData.id, LocalPlayer)
+    end)
+end
+
 local function reloadServerList()
     Title.Text = "Đang quét server... 🔍"
     for _, child in ipairs(ServerListFrame:GetChildren()) do
@@ -368,14 +519,11 @@ end
 RefreshBtn.MouseButton1Click:Connect(reloadServerList)
 task.spawn(reloadServerList)
 
--- ==========================================
--- SỰ KIỆN TƯƠNG TÁC (LƯU LẠI KHI THAY ĐỔI)
--- ==========================================
 MaxPlayersInput.FocusLost:Connect(function()
     local val = tonumber(MaxPlayersInput.Text)
     if val then
         AppData.MaxPlayers = val
-        SaveData() -- Lưu lại số mới vào file
+        SaveData()
     else
         MaxPlayersInput.Text = tostring(AppData.MaxPlayers)
     end
@@ -384,30 +532,77 @@ end)
 AutoHopToggle.MouseButton1Click:Connect(function()
     AppData.AutoHopEnabled = not AppData.AutoHopEnabled
     UpdateToggleUI()
-    SaveData() -- Lưu lại trạng thái BẬT/TẮT vào file
+    SaveData()
 end)
 
 -- ==========================================
--- VÒNG LẶP AUTO HOP KHI TREO AUTO-EXEC
+-- LOGIC TAB 2: TIỆN ÍCH (MỚI)
+-- ==========================================
+CopyJobIdBtn.MouseButton1Click:Connect(function()
+    setclipboard(tostring(game.JobId))
+    CopyJobIdBtn.Text = "✅ Đã Copy!"
+    task.wait(2)
+    CopyJobIdBtn.Text = "📋 Copy JobId Hiện Tại"
+end)
+
+JoinJobIdBtn.MouseButton1Click:Connect(function()
+    local jobId = JobIdInput.Text
+    if jobId and jobId ~= "" then
+        JoinJobIdBtn.Text = "Đang bay..."
+        pcall(function()
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, LocalPlayer)
+        end)
+        task.wait(3)
+        JoinJobIdBtn.Text = "🚀 Bay Tới"
+    end
+end)
+
+RandomServerBtn.MouseButton1Click:Connect(function()
+    RandomServerBtn.Text = "Đang tìm..."
+    local servers = getBestServers()
+    if #servers > 0 then
+        -- Lấy random từ toàn bộ list
+        local randomSrv = servers[math.random(1, #servers)]
+        RandomServerBtn.Text = "Bay vào phòng: " .. randomSrv.playing .. " người"
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, randomSrv.id, LocalPlayer)
+    else
+        RandomServerBtn.Text = "❌ Lỗi"
+        task.wait(2)
+        RandomServerBtn.Text = "🎲 Random 1 Server Bất Kỳ"
+    end
+end)
+
+RandomLowServerBtn.MouseButton1Click:Connect(function()
+    RandomLowServerBtn.Text = "Đang tìm phòng ma..."
+    local servers = getBestServers()
+    if #servers > 0 then
+        -- Lấy random trong top 10 server ít người nhất (do bảng đã sort ascending)
+        local range = math.min(10, #servers)
+        local randomSrv = servers[math.random(1, range)]
+        RandomLowServerBtn.Text = "Tìm thấy phòng: " .. randomSrv.playing .. " người!"
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, randomSrv.id, LocalPlayer)
+    else
+        RandomLowServerBtn.Text = "❌ Không tìm thấy"
+        task.wait(2)
+        RandomLowServerBtn.Text = "👻 Random Server ÍT Người"
+    end
+end)
+
+-- ==========================================
+-- VÒNG LẶP AUTO HOP KHI TREO
 -- ==========================================
 local isTeleporting = false
-
 task.spawn(function()
     while task.wait(5) do
         if isTeleporting then continue end
-
-        -- Nó sẽ đọc biến AppData.AutoHopEnabled (đã được load từ file)
         if AppData.AutoHopEnabled then
             local currentPlayersCount = #Players:GetPlayers()
-
             if currentPlayersCount > AppData.MaxPlayers then
                 Title.Text = "⚠️ Đang tìm server có <= " .. AppData.MaxPlayers .. " người..."
-                
                 local servers = getBestServers()
                 local targetServer = nil
 
                 for _, server in ipairs(servers) do
-                    -- Kiểm tra xem ID có nằm trong file Blacklist không
                     if not AppData.BannedServers[server.id] and server.playing <= AppData.MaxPlayers then
                         targetServer = server
                         break
@@ -416,17 +611,12 @@ task.spawn(function()
 
                 if targetServer then
                     Title.Text = "🚀 Lụm được server " .. targetServer.playing .. " người! Đang bay..."
-                    
-                    -- Ghi ID server mới vào Blacklist và Save liền
                     AppData.BannedServers[targetServer.id] = true 
                     SaveData()
-                    
                     isTeleporting = true
-                    
                     pcall(function()
                         TeleportService:TeleportToPlaceInstance(game.PlaceId, targetServer.id, LocalPlayer)
                     end)
-                    
                     task.wait(10)
                     isTeleporting = false
                 else
