@@ -545,6 +545,45 @@ end)
 local isTeleporting = false
 task.spawn(function()
     while task.wait(3) do
+        if isTeleporting then continue end
+        if AppData.AutoHopEnabled then
+            local currentPlayers = #Players:GetPlayers()
+            if currentPlayers > AppData.MaxPlayers then
+                isTeleporting = true
+                Title.Text = "⚠️ Quá tải! Đang nhảy Server..."
+                
+                local servers = getSingaporeServers(getBestServers())
+                local target = nil
+                
+                for _, s in ipairs(servers) do
+                    if not AppData.BannedServers[s.id] and s.playing < s.maxPlayers and s.playing <= (AppData.MaxPlayers - 1) then
+                        target = s; break
+                    end
+                end
+                
+                if target then
+                    AppData.BannedServers[target.id] = os.time(); SaveData()
+                    TeleportToTarget(target.id)
+                else
+                    isTeleporting = false
+                    Title.Text = "❌ Không có server trống!"
+                    task.wait(2)
+                    Title.Text = "Server Finder & Auto-Hop ⚡"
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- KHỞI CHẠY HỆ THỐNG
+-- ==========================================
+MakeDraggable(MainFrame)
+ApplyTheme(currentThemeColor, currentTransparency)
+task.spawn(PopulateServerList)
+local isTeleporting = false
+task.spawn(function()
+    while task.wait(3) do
         if AppData.AutoHopEnabled and not isTeleporting then
             -- Chỉ đổi server nếu số người hiện tại lớn hơn mức cho phép
             if #Players:GetPlayers() > AppData.MaxPlayers then
