@@ -545,39 +545,101 @@ end)
 local isTeleporting = false
 task.spawn(function()
     while task.wait(3) do
-        if isTeleporting then continue end
-        if AppData.AutoHopEnabled then
-            local currentPlayers = #Players:GetPlayers()
-            if currentPlayers > AppData.MaxPlayers then
+        if AppData.AutoHopEnabled and not isTeleporting then
+            -- Chỉ đổi server nếu số người hiện tại lớn hơn mức cho phép
+            if #Players:GetPlayers() > AppData.MaxPlayers then
                 isTeleporting = true
-                Title.Text = "⚠️ Quá tải! Đang nhảy Server..."
+                local servers = getBestServers()
+                local targetServer = nil
                 
-                local servers = getSingaporeServers(getBestServers())
-                local target = nil
-                
-                for _, s in ipairs(servers) do
-                    if not AppData.BannedServers[s.id] and s.playing < s.maxPlayers and s.playing <= (AppData.MaxPlayers - 1) then
-                        target = s; break
+                -- Tìm server phù hợp và chưa bị cấm (banned)
+                for _, srv in ipairs(servers) do
+                    if srv.id ~= game.JobId and srv.playing <= AppData.MaxPlayers and not AppData.BannedServers[srv.id] then
+                        targetServer = srv.id
+                        break
                     end
                 end
                 
-                if target then
-                    AppData.BannedServers[target.id] = os.time(); SaveData()
-                    TeleportToTarget(target.id)
+                if targetServer then
+                    Title.Text = "Auto-Hop: Tìm thấy server, đang vào... 🚀"
+                    AppData.BannedServers[targetServer] = os.time()
+                    SaveData()
+                    TeleportToTarget(targetServer)
+                    task.wait(6) -- Đợi quá trình dịch chuyển
                 else
-                    isTeleporting = false
-                    Title.Text = "❌ Không có server trống!"
-                    task.wait(2)
-                    Title.Text = "Server Finder & Auto-Hop ⚡"
+                    Title.Text = "Auto-Hop: Đang tìm kiếm server phù hợp..."
                 end
+                isTeleporting = false
             end
         end
     end
 end)
 
 -- ==========================================
--- KHỞI CHẠY HỆ THỐNG
+-- SỰ KIỆN MỞ BẢNG PING & FPS (ĐỘC LẬP)
 -- ==========================================
-MakeDraggable(MainFrame)
-ApplyTheme(currentThemeColor, currentTransparency)
-task.spawn(PopulateServerList)
+local StatsGui = Instance.new("ScreenGui")
+StatsGui.Name = "StatsTracker"
+StatsGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+StatsGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+StatsGui.Enabled = false
+
+local StatsFrame = Instance.new("Frame", StatsGui)
+StatsFrame.Size = UDim2.new(0, 150, 0, 60)
+StatsFrame.Position = UDim2.new(0.01, 0, 0.4, 0)
+StatsFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+StatsFrame.BackgroundTransparency = 0.4
+Instance.new("UICorner", StatsFrame).CornerRadius = UDim.new(0, 8)
+MakeDraggable(StatsFrame)
+
+local FpsLabel = Instance.new("TextLabel", StatsFrame)
+FpsLabel.Size = UDim2.new(1, 0, 0.5, 0)
+FpsLabel.BackgroundTransparency = 1
+FpsLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+FpsLabel.Font = Enum.Font.GothamBold
+FpsLabel.Text = "FPS: ..."
+
+local PingLabel = Instance.new("TextLabel", StatsFrame)
+PingLabel.Size = UDim2.new(1, 0, 0.5, 0)
+PingLabel.Position = UDim2.new(0, 0, 0.5, 0)
+PingLabel.BackgroundTransparency = 1
+PingLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+PingLabel.Font = Enum.Font.GothamBold
+PingLabel.Text = "Ping: ..."
+
+ShowStatsBtn.MouseButton1Click:Connect(function()
+    StatsGui.Enabled = not StatsGui.Enabled
+    if StatsGui.Enabled then
+        ShowStatsBtn.Text = "🖥️ Đóng Bảng Ping & FPS"
+        ShowStatsBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+    else
+        ShowStatsBtn.Text = "🖥️ Mở Bảng Ping & FPS"
+        ShowStatsBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+        ApplyTheme() -- Trả lại màu cũ
+    end
+end)
+
+local frameCount = 0
+local lastTime = tick()
+RunService.RenderStepped:Connect(function()
+    if StatsGui.Enabled then
+        frameCount = frameCount + 1
+        local currentTime = tick()
+        if currentTime - lastTime >= 1 then
+            FpsLabel.Text = "FPS: " .. math.floor(frameCount / (currentTime - lastTime))
+            frameCount = 0
+            lastTime = currentTime
+            
+            pcall(function()
+                PingLabel.Text = "Ping: " .. math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) .. " ms"
+            end)
+        end
+    end
+end)
+
+-- ==========================================
+-- KHỞI TẠO LẦN ĐẦU
+-- ==========================================
+SwitchTab(1)
+ApplyTheme()
+PopulateServerList()
