@@ -3,15 +3,12 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 
--- Chống trùng lặp (xóa cái cũ nếu lỡ bấm chạy 2 lần)
+-- Xóa UI cũ nếu có
 local existing = CoreGui:FindFirstChild("MiniExecutorGui") or LocalPlayer.PlayerGui:FindFirstChild("MiniExecutorGui")
 if existing then existing:Destroy() end
 
--- Ưu tiên nhét UI vào CoreGui để chống bị game phát hiện, nếu không hỗ trợ thì xài PlayerGui
 local success, parentTarget = pcall(function() return CoreGui end)
-if not success or not parentTarget then
-    parentTarget = LocalPlayer:WaitForChild("PlayerGui")
-end
+if not success or not parentTarget then parentTarget = LocalPlayer:WaitForChild("PlayerGui") end
 
 -- ==========================================
 -- KHỞI TẠO GIAO DIỆN
@@ -28,7 +25,7 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
--- Chức năng kéo thả UI
+-- Chức năng kéo thả
 local dragging, dragInput, dragStart, startPos
 MainFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -50,11 +47,22 @@ end)
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(1, 0, 0, 35)
 Title.BackgroundTransparency = 1
-Title.Text = "  💻 Cục Nợ Code Runner"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Text = "  💻 Code Runner (Có chức năng Kill)"
+Title.TextColor3 = Color3.fromRGB(255, 200, 100)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 14
 Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Nút Đóng UI
+local CloseBtn = Instance.new("TextButton", MainFrame)
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0, 2)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.Text = "❌"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 14
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
 -- Ô nhập Script
 local InputBox = Instance.new("TextBox", MainFrame)
@@ -68,7 +76,7 @@ InputBox.TextXAlignment = Enum.TextXAlignment.Left
 InputBox.TextYAlignment = Enum.TextYAlignment.Top
 InputBox.ClearTextOnFocus = false
 InputBox.MultiLine = true
-InputBox.Text = "-- Dán script của bác vào đây...\nprint('Chạy ngon!')"
+InputBox.Text = "while task.wait(1) do\n    print('Đang chạy vòng lặp...')\nend"
 Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 6)
 
 -- Nút Execute
@@ -82,46 +90,58 @@ ExecBtn.Font = Enum.Font.GothamBold
 ExecBtn.TextSize = 14
 Instance.new("UICorner", ExecBtn).CornerRadius = UDim.new(0, 6)
 
--- Nút Phá Hủy
-local DestroyBtn = Instance.new("TextButton", MainFrame)
-DestroyBtn.Size = UDim2.new(0.47, 0, 0, 35)
-DestroyBtn.Position = UDim2.new(1, -10 - (MainFrame.AbsoluteSize.X * 0.47), 1, -45) -- Căn phải
-DestroyBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-DestroyBtn.Text = "🗑️ Phá Hủy UI"
-DestroyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-DestroyBtn.Font = Enum.Font.GothamBold
-DestroyBtn.TextSize = 14
-Instance.new("UICorner", DestroyBtn).CornerRadius = UDim.new(0, 6)
+-- Nút Dừng Script
+local StopBtn = Instance.new("TextButton", MainFrame)
+StopBtn.Size = UDim2.new(0.47, 0, 0, 35)
+StopBtn.Position = UDim2.new(1, -10 - (MainFrame.AbsoluteSize.X * 0.47), 1, -45)
+StopBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+StopBtn.Text = "🛑 Dừng Script"
+StopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+StopBtn.Font = Enum.Font.GothamBold
+StopBtn.TextSize = 14
+Instance.new("UICorner", StopBtn).CornerRadius = UDim.new(0, 6)
 
--- Cập nhật lại vị trí nút hủy nếu size thay đổi
 MainFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-    DestroyBtn.Position = UDim2.new(1, -10 - (MainFrame.AbsoluteSize.X * 0.47), 1, -45)
+    StopBtn.Position = UDim2.new(1, -10 - (MainFrame.AbsoluteSize.X * 0.47), 1, -45)
 end)
 
 -- ==========================================
--- LOGIC HOẠT ĐỘNG
+-- LOGIC HOẠT ĐỘNG (LƯU & ÉP DỪNG THREAD)
 -- ==========================================
+local runningThread = nil -- Biến lưu trữ luồng đang chạy
 
--- Logic chạy code
 ExecBtn.MouseButton1Click:Connect(function()
     local code = InputBox.Text
-    -- Dùng loadstring để biên dịch code từ dạng Text sang Lua Script
     local func, err = loadstring(code)
     
     if func then
-        -- Chạy code trong luồng riêng (task.spawn) để không làm đơ UI nếu script kia bị lỗi vòng lặp
-        task.spawn(function()
+        -- Tự động kill script cũ nếu bác lỡ bấm chạy nhiều lần
+        if runningThread then
+            pcall(function() task.cancel(runningThread) end)
+        end
+        
+        -- Khởi tạo luồng mới và gán vào biến
+        runningThread = task.spawn(function()
+            Title.Text = "  💻 Code Runner - [ĐANG CHẠY 🟢]"
             local success, runErr = pcall(func)
             if not success then
                 warn("Lỗi khi chạy script: " .. tostring(runErr))
             end
+            Title.Text = "  💻 Code Runner - [ĐÃ XONG ⚪]"
         end)
     else
         warn("Lỗi cú pháp (Syntax Error): " .. tostring(err))
     end
 end)
 
--- Logic Phá Hủy
-DestroyBtn.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
+StopBtn.MouseButton1Click:Connect(function()
+    if runningThread then
+        -- Ép hủy luồng
+        pcall(function() task.cancel(runningThread) end)
+        runningThread = nil
+        Title.Text = "  💻 Code Runner - [ĐÃ ÉP DỪNG 🔴]"
+        print("Đã hủy thành công script đang chạy!")
+    else
+        Title.Text = "  💻 Code Runner - [KHÔNG CÓ SCRIPT 🟡]"
+    end
 end)
