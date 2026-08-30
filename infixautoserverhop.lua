@@ -7,9 +7,12 @@ local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
 local LocalPlayer = Players.LocalPlayer
 
-if LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("LowServerFinder") then
-    LocalPlayer.PlayerGui.LowServerFinder:Destroy()
-end
+-- Fix 3: Dọn dẹp UI cũ triệt để ở mọi phân vùng
+pcall(function()
+    if LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("LowServerFinder") then LocalPlayer.PlayerGui.LowServerFinder:Destroy() end
+    if game:GetService("CoreGui"):FindFirstChild("LowServerFinder") then game:GetService("CoreGui").LowServerFinder:Destroy() end
+    if gethui and gethui():FindFirstChild("LowServerFinder") then gethui().LowServerFinder:Destroy() end
+end)
 
 local setclipboard = setclipboard or toclipboard or function(text) warn("Executor không hỗ trợ copy!") end
 
@@ -35,7 +38,7 @@ local currentTab = 1
 local isBindingKey = false
 
 -- ==========================================
--- HỆ THỐNG LƯU FILE (ĐÃ NÂNG CẤP LƯU TIỆN ÍCH)
+-- HỆ THỐNG LƯU FILE
 -- ==========================================
 local ConfigFile = "AutoHop_Data.json"
 local AppData = {
@@ -47,7 +50,6 @@ local AppData = {
     BannedServers = {},
     ThemeRGB = {R = 40, G = 40, B = 40},
     Transparency = 0,
-    -- DỮ LIỆU TÍNH NĂNG MỚI ĐƯỢC LƯU
     SavedWalkSpeed = "",
     SavedJumpPower = "",
     LoopModsEnabled = false,
@@ -79,7 +81,6 @@ local function LoadData()
                 AppData.UIScale = decoded.UIScale or 1
                 AppData.ToggleKey = decoded.ToggleKey or "RightControl"
                 
-                -- Khôi phục tính năng Tiện ích
                 AppData.SavedWalkSpeed = decoded.SavedWalkSpeed or ""
                 AppData.SavedJumpPower = decoded.SavedJumpPower or ""
                 AppData.LoopModsEnabled = decoded.LoopModsEnabled or false
@@ -106,13 +107,21 @@ AppData.BannedServers[game.JobId] = os.time()
 SaveData()
 
 -- ==========================================
--- KHỞI TẠO GIAO DIỆN
+-- KHỞI TẠO GIAO DIỆN (CHỐNG ẨN UI HOÀN TOÀN)
 -- ==========================================
 local LowServerFinder = Instance.new("ScreenGui")
 LowServerFinder.Name = "LowServerFinder"
 LowServerFinder.ResetOnSpawn = false
-LowServerFinder.Parent = LocalPlayer:WaitForChild("PlayerGui")
 LowServerFinder.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local uiParent
+if gethui then
+    uiParent = gethui()
+else
+    local s, core = pcall(function() return game:GetService("CoreGui") end)
+    if s and core then uiParent = core else uiParent = LocalPlayer:WaitForChild("PlayerGui") end
+end
+LowServerFinder.Parent = uiParent
 
 local MainFrame = Instance.new("Frame", LowServerFinder)
 MainFrame.Name = "MainFrame"
@@ -189,7 +198,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- UI Biến Tab 1 & Tab 2
 local ConfigFrame = Instance.new("Frame", Tab1Container); local ServerListFrame = Instance.new("ScrollingFrame", Tab1Container)
 local MaxPlayersInput = Instance.new("TextBox", ConfigFrame); local AutoHopToggle = Instance.new("TextButton", ConfigFrame); local AutoRefreshInput = Instance.new("TextBox", ConfigFrame); local RefreshBtn = Instance.new("TextButton", ConfigFrame)
 local GameIcon = Instance.new("ImageLabel", Tab2Container); local JobIdInput = Instance.new("TextBox", Tab2Container); local JoinJobIdBtn = Instance.new("TextButton", Tab2Container); local CopyJobIdBtn = Instance.new("TextButton", Tab2Container)
@@ -197,9 +205,6 @@ local RandomServerBtn = Instance.new("TextButton", Tab2Container); local RandomL
 local SetSpeedInput = Instance.new("TextBox", Tab2Container); local SetJumpInput = Instance.new("TextBox", Tab2Container); local ApplyModsBtn = Instance.new("TextButton", Tab2Container)
 local InfJumpBtn = Instance.new("TextButton", Tab2Container); local ShowStatsBtn = Instance.new("TextButton", Tab2Container); local IYBtn = Instance.new("TextButton", Tab2Container); local AntiLagBtn = Instance.new("TextButton", Tab2Container)
 
--- ==========================================
--- ĐỒNG BỘ THEME & MÀU SẮC AUTO-SAVE
--- ==========================================
 local function ApplyTheme(color, transparency)
     if color then currentThemeColor = color end
     if transparency then currentTransparency = transparency end
@@ -219,7 +224,6 @@ local function ApplyTheme(color, transparency)
     
     if AppData.AutoHopEnabled then AutoHopToggle.BackgroundColor3 = Color3.fromRGB(50, 150, 50); AutoHopToggle.Text = "Auto Hop: BẬT 🟢" else AutoHopToggle.BackgroundColor3 = Color3.fromRGB(150, 50, 50); AutoHopToggle.Text = "Auto Hop: TẮT 🔴" end
     
-    -- Cập nhật màu nút tiện ích dựa theo state
     if AppData.LoopModsEnabled then ApplyModsBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50) else ApplyModsBtn.BackgroundColor3 = lighterTone end
     if AppData.InfJumpEnabled then InfJumpBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50) else InfJumpBtn.BackgroundColor3 = lighterTone end
 
@@ -232,7 +236,6 @@ local function SwitchTab(tab)
 end
 Tab1Btn.MouseButton1Click:Connect(function() SwitchTab(1) end); Tab2Btn.MouseButton1Click:Connect(function() SwitchTab(2) end); Tab3Btn.MouseButton1Click:Connect(function() SwitchTab(3) end)
 
--- Thiết kế nhanh UI Tab 1 & Tab 2 (Lược gọn phần size/pos để tối ưu mã)
 ConfigFrame.Position = UDim2.new(0.008, 0, 0, 0); ConfigFrame.Size = UDim2.new(0, 688, 0, 45); Instance.new("UICorner", ConfigFrame).CornerRadius = UDim.new(0, 8)
 ServerListFrame.BorderSizePixel = 0; ServerListFrame.Position = UDim2.new(0.008, 0, 0.14, 0); ServerListFrame.Size = UDim2.new(0, 688, 0, 330); ServerListFrame.ScrollBarThickness = 4
 local ServerListLayout = Instance.new("UIListLayout", ServerListFrame); ServerListLayout.Padding = UDim.new(0, 6); ServerListLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -262,7 +265,6 @@ ShowStatsBtn.Position = UDim2.new(0.28, 0, 0.77, 0); ShowStatsBtn.Size = UDim2.n
 IYBtn.Position = UDim2.new(0.51, 0, 0.77, 0); IYBtn.Size = UDim2.new(0, 130, 0, 35); IYBtn.Font = Enum.Font.GothamBold; IYBtn.Text = "🛠️ Mở IY"; IYBtn.TextColor3 = Color3.fromRGB(255, 255, 255); IYBtn.TextSize = 13; Instance.new("UICorner", IYBtn).CornerRadius = UDim.new(0, 6)
 AntiLagBtn.Position = UDim2.new(0.72, 0, 0.77, 0); AntiLagBtn.Size = UDim2.new(0, 130, 0, 35); AntiLagBtn.Font = Enum.Font.GothamBold; AntiLagBtn.Text = "🚀 Anti Lag"; AntiLagBtn.TextColor3 = Color3.fromRGB(255, 255, 255); AntiLagBtn.TextSize = 13; Instance.new("UICorner", AntiLagBtn).CornerRadius = UDim.new(0, 6)
 
--- Tab 3 (Cài đặt)
 local function createSectionTitle(text, posY)
     local lbl = Instance.new("TextLabel", Tab3Container)
     lbl.BackgroundTransparency = 1; lbl.Position = UDim2.new(0.05, 0, posY, 0); lbl.Size = UDim2.new(0, 600, 0, 25); lbl.Font = Enum.Font.GothamBold; lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(255, 220, 100); lbl.TextSize = 15; lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -314,9 +316,12 @@ ResetConfigBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==========================================
--- LOGIC SERVER LIST
+-- LOGIC SERVER LIST & FALLBACK KHI LỖI (FIX 1 & 2)
 -- ==========================================
 local isRefreshing = false
+local isTeleporting = false
+local teleportFailConnection
+
 local function fetchServers(cursor)
     local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100", game.PlaceId)
     if cursor then url = url .. "&cursor=" .. cursor end
@@ -331,7 +336,11 @@ local function getAllServersSorted()
         local data = fetchServers(cursor)
         if data and data.data then
             for _, s in ipairs(data.data) do
-                if s.playing < s.maxPlayers then s.ping = s.ping or math.huge; table.insert(servers, s) end
+                -- Fix 1: Chừa ít nhất 1 slot để tránh kẹt vào server đầy/server VIP chặn truy cập
+                if s.playing < (s.maxPlayers - 1) then 
+                    s.ping = s.ping or math.huge; 
+                    table.insert(servers, s) 
+                end
             end
             cursor = data.nextPageCursor; pages = pages + 1; task.wait(0.05)
         else break end
@@ -344,10 +353,40 @@ local function getAllServersSorted()
 end
 
 local function TeleportToTarget(srvId)
-    if not srvId then return end
+    if not srvId or isTeleporting then return end
+    isTeleporting = true
     Title.Text = "Đang kết nối Server... 🚀"
+    
+    -- Fix 2: Tự động Fallback khi server từ chối kết nối (VIP/Ban/Error 773/524)
+    if not teleportFailConnection then
+        teleportFailConnection = TeleportService.TeleportInitFailed:Connect(function(plr, teleportResult, errorMessage, placeId, jobId)
+            if plr == LocalPlayer and jobId then
+                warn("Lỗi hop server:", errorMessage)
+                AppData.BannedServers[jobId] = os.time()
+                SaveData()
+                Title.Text = "Lỗi kết nối! Đang đổi server dự phòng... 🔄"
+                task.wait(1.5)
+                
+                local servers = getAllServersSorted()
+                for _, srv in ipairs(servers) do
+                    if srv.id ~= game.JobId and not AppData.BannedServers[srv.id] and srv.playing < (srv.maxPlayers - 1) then
+                        TeleportService:TeleportToPlaceInstance(game.PlaceId, srv.id, LocalPlayer)
+                        return
+                    end
+                end
+                Title.Text = "Server Finder & Auto-Hop ⚡"
+                isTeleporting = false
+            end
+        end)
+    end
+
     local s = pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, srvId, LocalPlayer) end)
-    if not s then Title.Text = "Lỗi kết nối! Thử lại..."; task.wait(1.5); Title.Text = "Server Finder & Auto-Hop ⚡" end
+    if not s then 
+        Title.Text = "Lỗi API! Thử lại..."
+        task.wait(1.5)
+        Title.Text = "Server Finder & Auto-Hop ⚡"
+        isTeleporting = false 
+    end
 end
 
 local function PopulateServerList()
@@ -410,17 +449,14 @@ JoinJobIdBtn.MouseButton1Click:Connect(function() local j = JobIdInput.Text; if 
 IYBtn.MouseButton1Click:Connect(function() pcall(function() loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))() end) end)
 AntiLagBtn.MouseButton1Click:Connect(function() pcall(function() loadstring(game:HttpGet('https://raw.githubusercontent.com/thatonevietnamese/thatonevietnamese/refs/heads/main/antilag.lua'))() end) end)
 
--- Khôi phục text hiển thị ngay khi load
 SetSpeedInput.Text = AppData.SavedWalkSpeed
 SetJumpInput.Text = AppData.SavedJumpPower
 
--- Tự động lưu giá trị khi bạn gõ xong
 SetSpeedInput.FocusLost:Connect(function() AppData.SavedWalkSpeed = SetSpeedInput.Text; SaveData() end)
 SetJumpInput.FocusLost:Connect(function() AppData.SavedJumpPower = SetJumpInput.Text; SaveData() end)
 
 local loopWalkSpeed, loopJumpPower = nil, nil
 
--- Thiết lập lại biến Loop ngay lúc vừa load server nếu trạng thái là BẬT
 if AppData.LoopModsEnabled then
     local s = tonumber(AppData.SavedWalkSpeed); local j = tonumber(AppData.SavedJumpPower)
     if s then loopWalkSpeed = math.clamp(s, 0, 200) end
@@ -439,7 +475,7 @@ ApplyModsBtn.MouseButton1Click:Connect(function()
         loopWalkSpeed = nil; loopJumpPower = nil
         ApplyModsBtn.Text = "⚡ Khóa Chỉ Số: TẮT"
     end
-    ApplyTheme() -- Đổi màu nút
+    ApplyTheme()
 end)
 
 RunService.Heartbeat:Connect(function()
@@ -451,7 +487,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Khôi phục trạng thái Nhảy Vô Hạn
 local infJumpEnabled = AppData.InfJumpEnabled
 if infJumpEnabled then InfJumpBtn.Text = "🦘 Nhảy Vô Hạn: BẬT" end
 
@@ -459,7 +494,7 @@ InfJumpBtn.MouseButton1Click:Connect(function()
     AppData.InfJumpEnabled = not AppData.InfJumpEnabled
     infJumpEnabled = AppData.InfJumpEnabled
     if infJumpEnabled then InfJumpBtn.Text = "🦘 Nhảy Vô Hạn: BẬT" else InfJumpBtn.Text = "🦘 Nhảy Vô Hạn: TẮT" end
-    ApplyTheme() -- Đổi màu nút
+    ApplyTheme()
 end)
 
 UserInputService.JumpRequest:Connect(function()
@@ -475,11 +510,9 @@ MaxPlayersInput.FocusLost:Connect(function()
 end)
 AutoHopToggle.MouseButton1Click:Connect(function() AppData.AutoHopEnabled = not AppData.AutoHopEnabled; ApplyTheme() end)
 
-local isTeleporting = false
 task.spawn(function()
     while task.wait(3) do
         if AppData.AutoHopEnabled and not isTeleporting and #Players:GetPlayers() > AppData.MaxPlayers then
-            isTeleporting = true
             local servers = getAllServersSorted()
             local targetServer = nil
             for _, srv in ipairs(servers) do
@@ -489,7 +522,6 @@ task.spawn(function()
                 Title.Text = "Auto-Hop: Tìm thấy server, đang vào... 🚀"
                 AppData.BannedServers[targetServer] = os.time(); SaveData(); TeleportToTarget(targetServer); task.wait(6)
             else Title.Text = "Auto-Hop: Đang tìm kiếm server phù hợp..." end
-            isTeleporting = false
         end
     end
 end)
